@@ -5,29 +5,24 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"unicode"
 )
 
-var (
-	_ = log.Print
-)
-
-// scanner is a type that helps us turn a stream of terminal commands into
-// command objects that can act on our terminal.
+// scanner is a type that takes a stream of bytes destined for a terminal
+// and turns it into commands that update our terminal screen reader.
 type scanner struct {
-	reader *bufio.Reader
+	*bufio.Reader
 }
 
-func newScanner(r io.Reader) scanner {
-	return scanner{reader: bufio.NewReaderSize(r, 256)}
+func newScanner(r io.Reader) *scanner {
+	return &scanner{bufio.NewReaderSize(r, 256)}
 }
 
 // next advances to the next command in the stream. It will return the command
 // if it finds one. If it reaches eof, the command will be nil, as will the error.
 // Only if an actual error condition is observed will error be set.
 func (s *scanner) next() (command, error) {
-	r, size, err := s.reader.ReadRune()
+	r, size, err := s.ReadRune()
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +32,7 @@ func (s *scanner) next() (command, error) {
 	}
 
 	if r == escape || r == unicodeCsi { // At beginning of escape sequence.
-		s.reader.UnreadRune()
+		s.UnreadRune()
 		return s.scanEscapeSequence()
 	}
 
@@ -57,9 +52,9 @@ var (
 
 // scanEscapeSequence scans to the end of the current escape sequence. The first
 // character
-func (s *scanner) scanEscapeSequence() (command, error) {
+func (s scanner) scanEscapeSequence() (command, error) {
 	csi := false
-	esc, _, err := s.reader.ReadRune()
+	esc, _, err := s.ReadRune()
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +68,7 @@ func (s *scanner) scanEscapeSequence() (command, error) {
 	var cmd bytes.Buffer
 	quote := false
 	for i := 0; ; i++ {
-		r, _, err := s.reader.ReadRune()
+		r, _, err := s.ReadRune()
 		if err != nil {
 			return nil, err
 		}

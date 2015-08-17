@@ -38,10 +38,12 @@ type csCommand struct {
 	args string
 }
 
-type nullaryHandler func(*VT100)
-type unaryHandler func(*VT100, int)
-type binaryHandler func(*VT100, int, int)
-type naryHandler func(*VT100, ...int)
+type (
+	nullaryHandler func(*VT100)
+	unaryHandler   func(*VT100, int)
+	binaryHandler  func(*VT100, int, int)
+	naryHandler    func(*VT100, ...int)
+)
 
 var (
 	nullaryCommands = map[rune]nullaryHandler{
