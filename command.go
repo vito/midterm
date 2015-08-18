@@ -2,10 +2,12 @@ package vt100
 
 import (
 	"fmt"
-	"github.com/golang/glog"
+	"image/color"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/golang/glog"
 )
 
 const (
@@ -38,91 +40,138 @@ type csCommand struct {
 	args string
 }
 
-type (
-	nullaryHandler func(*VT100)
-	unaryHandler   func(*VT100, int)
-	binaryHandler  func(*VT100, int, int)
-	naryHandler    func(*VT100, ...int)
-)
+type intHandler func(*VT100, []int)
 
 var (
-	nullaryCommands = map[rune]nullaryHandler{
-		's': (*VT100).save,
-		'7': (*VT100).save,
-		'u': (*VT100).unsave,
-		'8': (*VT100).unsave,
-	}
-	unaryCommands = map[rune]unaryHandler{
+	// intHandlers are handlers for which all arguments are numbers.
+	// This is most of them -- all the ones that we process. Eventually,
+	// we may add handlers that support non-int args. Those handlers
+	// will instead receive []string, and they'll have to choose on their
+	// own how they might be parsed.
+	intHandlers = map[rune]intHandler{
+		's': save,
+		'7': save,
+		'u': unsave,
+		'8': unsave,
 		'A': relativeMove(-1, 0),
 		'B': relativeMove(1, 0),
 		'C': relativeMove(0, 1),
 		'D': relativeMove(0, -1),
-		'K': func(v *VT100, lineDir int) {
-			v.eraseDirection(eraseDirection(lineDir))
-		},
-		'J': func(v *VT100, sel int) {
-			v.eraseDirection(eraseDirection(int(eraseDown) + sel))
-		},
+		'K': eraseColumns,
+		'J': eraseLines,
+		'H': home,
+		'f': home,
+		'm': updateAttributes,
 	}
-	binaryCommands = map[rune]binaryHandler{
-		'H': (*VT100).home,
-		'f': (*VT100).home,
-	}
-	naryCommands = map[rune]naryHandler{}
 )
 
-func relativeMove(y, x int) func(*VT100, int) {
-	return func(v *VT100, count int) {
-		v.move(y*count, x*count)
+func save(v *VT100, _ []int) {
+	v.save()
+}
+
+func unsave(v *VT100, _ []int) {
+	v.unsave()
+}
+
+var (
+	codeColors = []color.RGBA{
+		Black,
+		Red,
+		Green,
+		Yellow,
+		Blue,
+		Magenta,
+		Cyan,
+		White,
+	}
+)
+
+// A command to update the attributes of the cursor based on the arg list.
+func updateAttributes(v *VT100, args []int) {
+	f := &v.Cursor.F
+
+	for _, x := range args {
+		switch x {
+		case 0:
+			*f = Format{}
+		case 1:
+			f.Intensity = Bright
+		case 2:
+			f.Intensity = Dim
+		case 22:
+			f.Intensity = Normal
+		case 4:
+			f.Underscore = true
+		case 24:
+			f.Underscore = false
+		case 5, 6:
+			f.Blink = true // We don't distinguish between blink speeds.
+		case 25:
+			f.Blink = false
+		case 8:
+			f.Conceal = true
+		case 28:
+			f.Conceal = false
+		case 30, 31, 32, 33, 34, 35, 36, 37:
+			f.Fg = codeColors[x-30]
+		case 39:
+			f.Fg = FgDefault
+		case 40, 41, 42, 43, 44, 45, 46, 47:
+			f.Bg = codeColors[x-40]
+		case 49:
+			f.Bg = BgDefault
+			// 38 and 48 not supported. Maybe someday.
+		}
 	}
 }
 
-func (c csCommand) getHandler() interface{} {
-	if f, ok := nullaryCommands[c.cmd]; ok {
-		return f
-	} else if f, ok := unaryCommands[c.cmd]; ok {
-		return f
-	} else if f, ok := binaryCommands[c.cmd]; ok {
-		return f
-	} else if f, ok := naryCommands[c.cmd]; ok {
-		return f
-	} else {
-		return nil
+func relativeMove(y, x int) func(*VT100, []int) {
+	return func(v *VT100, args []int) {
+		c := 1
+		if len(args) >= 1 {
+			c = args[0]
+		}
+		v.move(y*c, x*c)
 	}
+}
+
+func eraseColumns(v *VT100, args []int) {
+	d := eraseForward
+	if len(args) > 0 {
+		d = eraseDirection(args[0])
+	}
+	v.eraseColumns(d)
+}
+
+func eraseLines(v *VT100, args []int) {
+	d := eraseForward
+	if len(args) > 0 {
+		d = eraseDirection(args[0])
+	}
+	v.eraseLines(d)
+}
+
+func home(v *VT100, args []int) {
+	if len(args) < 2 {
+		v.home(0, 0)
+	}
+	v.home(args[0], args[1])
 }
 
 func (c csCommand) display(v *VT100) {
-	var err error
-	// Declaring this here rather than using short assignment allows us to
-	// share the error handling.
-	var a []int
-
-	handler := c.getHandler()
-	switch f := handler.(type) {
-	case nullaryHandler:
-		f(v)
-	case unaryHandler:
-		a, err = c.argInts(1)
-		if err == nil {
-			f(v, a[0])
-		}
-	case binaryHandler:
-		a, err = c.argInts(2)
-		if err == nil {
-			f(v, a[0], a[1])
-		}
-	case naryHandler:
-		a, err = c.argInts(0)
-		if err == nil {
-			f(v, a...)
-		}
-	case nil:
+	f, ok := intHandlers[c.cmd]
+	if !ok {
 		c.log("unsupported command")
+		return
 	}
+
+	args, err := c.argInts()
 	if err != nil {
-		c.log("while parsing args: %v", err)
+		c.log(`while parsing args: %v`, err)
 		v.Err = err
 	}
+
+	f(v, args)
 }
 
 // log logs a problem with a csCommand at the warning level. Generally speaking,
@@ -138,12 +187,12 @@ var csArgsRe = regexp.MustCompile("^([^0-9]*)(.*)$")
 // argInts parses c.args as a slice of at least arity ints. If the number
 // of ; separated arguments is less than arity, the remaining elements of
 // the result will be zero. errors only on integer parsing failure.
-func (c csCommand) argInts(arity int) ([]int, error) {
-	args := strings.Split(c.args, ";")
-	if arity < len(args) {
-		arity = len(args)
+func (c csCommand) argInts() ([]int, error) {
+	if len(c.args) == 0 {
+		return make([]int, 0), nil
 	}
-	out := make([]int, arity)
+	args := strings.Split(c.args, ";")
+	out := make([]int, len(args))
 	for i, s := range args {
 		x, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {

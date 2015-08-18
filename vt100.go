@@ -14,107 +14,89 @@ import (
 	"bytes"
 	"fmt"
 	"image/color"
+	"sort"
 	"strings"
 )
 
-// +gen stringer
-type Color int
-
-// +gen stringer
-type Attribute uint8
-
-const (
-	Default Color = iota
-	Black
-	Red
-	Green
-	Yellow
-	Blue
-	Magenta
-	Cyan
-	White
-)
-
-const (
-	Normal     Attribute = 0
-	Bright               = 1
-	Dim                  = 2
-	Underscore           = 4
-	Blink                = 5
-	Reverse              = 7 //TODO(jaguilar): not displayed in html.
-	Hidden               = 8
-)
-
-const (
-	alphaNormal uint8 = 170
-	alphaBright uint8 = 255
-	alphaDim    uint8 = 85
-)
-
 var (
-	// Mapping from terminal color to rgb. The alpha values are overridden below.
-	colorMap = map[Color]color.RGBA{
-		Default: {0, 0, 0, 0},
-		Black:   {0, 0, 0, 0},
-		Red:     {255, 0, 0, 0},
-		Green:   {0, 255, 0, 0},
-		Yellow:  {255, 255, 0, 0},
-		Blue:    {0, 0, 255, 0},
-		Magenta: {255, 0, 255, 0},
-		Cyan:    {0, 255, 255, 0},
-		White:   {255, 255, 255, 0},
-	}
+	BgDefault = color.RGBA{0, 0, 0, 0}
+	FgDefault = color.RGBA{255, 255, 255, 0}
+	Black     = color.RGBA{0, 0, 0, 0}
+	Red       = color.RGBA{255, 0, 0, 0}
+	Green     = color.RGBA{0, 255, 0, 0}
+	Yellow    = color.RGBA{255, 255, 0, 0}
+	Blue      = color.RGBA{0, 0, 255, 0}
+	Magenta   = color.RGBA{255, 0, 255, 0}
+	Cyan      = color.RGBA{0, 255, 255, 0}
+	White     = color.RGBA{255, 255, 255, 0}
 )
+
+// +gen stringer
+type Intensity int
+
+const (
+	Normal Intensity = iota
+	Bright           = 1
+	Dim              = 2
+)
+
+func (i Intensity) alpha() uint8 {
+	switch i {
+	case Bright:
+		return 255
+	case Normal:
+		return 170
+	case Dim:
+		return 85
+	default:
+		panic(fmt.Errorf("unknown intensity: %d", uint8(i)))
+	}
+}
 
 type Format struct {
-	Fg, Bg Color
-	Att    []Attribute
-}
-
-func (f Format) contains(a Attribute) bool {
-	for _, aa := range f.Att {
-		if a == aa {
-			return true
-		}
-	}
-	return false
-}
-
-// cssColor returns an color.Color to display to the generated html page.
-func (f Format) cssColor(c Color) color.RGBA {
-	rgb := colorMap[c]
-	switch {
-	case f.contains(Bright):
-		rgb.A = alphaBright
-	case f.contains(Dim):
-		rgb.A = alphaDim
-	default:
-		rgb.A = alphaNormal
-	}
-	return rgb
+	// Fg is the foreground color.
+	Fg color.RGBA
+	// Bg is the background color.
+	Bg color.RGBA
+	// Intensity is the text intensity (bright, normal, dim).
+	Intensity Intensity
+	// Various text properties.
+	Underscore, Conceal, Negative, Blink bool
 }
 
 func colorString(c color.RGBA) string {
 	return fmt.Sprintf("#%02x%02x%02x%02x", c.R, c.G, c.B, c.A)
 }
 
+func withIntensity(c color.RGBA, i Intensity) color.RGBA {
+	c.A = i.alpha()
+	return c
+}
+
 func (f Format) css() string {
 	parts := make([]string, 0)
-	if f.Fg != Default {
-		parts = append(parts, "color:"+colorString(f.cssColor(f.Fg)))
+	if f.Fg != FgDefault {
+		parts = append(parts, "color:"+colorString(withIntensity(f.Fg, f.Intensity)))
 	}
-	if f.Bg != Default {
-		parts = append(parts, "background-color:"+colorString(f.cssColor(f.Fg)))
+	if f.Bg != BgDefault {
+		parts = append(parts, "background-color:"+colorString(withIntensity(f.Bg, f.Intensity)))
 	}
-	if f.contains(Underscore) {
+	if f.Underscore {
 		parts = append(parts, "text-decoration:underline")
 	}
-	if f.contains(Hidden) {
+	if f.Conceal {
 		parts = append(parts, "display:none")
 	}
-	if f.contains(Blink) {
+	if f.Blink {
 		parts = append(parts, "text-decoration:blink")
 	}
+	// We're not in performance sensitive code. Although this sort
+	// isn't strictly necessary, it gives us the nice property that
+	// the style of a particular set of attributes will always be
+	// generated the same way. As a result, we can use the html
+	// output in tests.
+	sort.StringSlice(parts).Sort()
+
 	return strings.Join(parts, ";")
 }
 
@@ -263,36 +245,46 @@ func (v *VT100) move(yy, xx int) {
 	v.home(y, x)
 }
 
+// eraseDirection is the logical direction in which an erase command happens,
+// from the cursor. For both erase commands, forward is 0, backward is 1,
+// and everything is 2.
 type eraseDirection int
 
 const (
-	eraseRight eraseDirection = iota
-	eraseLeft
-	eraseLine
-	eraseDown
-	eraseUp
+	// From the cursor to the end, inclusive.
+	eraseForward eraseDirection = iota
+
+	// From the beginning to the cursor, inclusive.
+	eraseBack
+
+	// Everything.
 	eraseAll
 )
 
-// eraseTo erases from the cursor to the provided coordinate, inclusively.
-// (All runes in the region are set to ' ' and all colors are returned to
-// the default.)
-func (v *VT100) eraseDirection(sel eraseDirection) {
+// eraseColumns erases columns from the current line.
+func (v *VT100) eraseColumns(d eraseDirection) {
 	y, x := v.Cursor.Y, v.Cursor.X // Aliases for simplicity.
-	maxY, maxX := v.Height-1, v.Width-1
-	switch sel {
-	case eraseLeft:
+	switch d {
+	case eraseBack:
 		v.eraseRegion(y, 0, y, x)
-	case eraseRight:
-		v.eraseRegion(y, x, y, maxX)
-	case eraseLine:
-		v.eraseRegion(y, 0, y, maxX)
-	case eraseUp:
-		v.eraseRegion(0, 0, y, maxX)
-	case eraseDown:
-		v.eraseRegion(y, 0, maxY, maxX)
+	case eraseForward:
+		v.eraseRegion(y, x, y, v.Width-1)
 	case eraseAll:
-		v.eraseRegion(0, 0, maxY, maxX)
+		v.eraseRegion(y, 0, y, v.Width-1)
+	}
+}
+
+// eraseLines erases lines from the current terminal. Note that
+// no matter what is selected, the entire current line is erased.
+func (v *VT100) eraseLines(d eraseDirection) {
+	y := v.Cursor.Y // Alias for simplicity.
+	switch d {
+	case eraseBack:
+		v.eraseRegion(0, 0, y, v.Width-1)
+	case eraseForward:
+		v.eraseRegion(y, 0, v.Height-1, v.Width-1)
+	case eraseAll:
+		v.eraseRegion(0, 0, v.Height-1, v.Width-1)
 	}
 }
 
