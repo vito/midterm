@@ -43,7 +43,7 @@ func TestPutRune(t *testing.T) {
 
 func TestMoveCursor(t *testing.T) {
 	v := fromLines("abc\ndef\nghi")
-	cmd(esc("[2;0H")).display(v)
+	cmd(esc("[3;1H")).display(v)
 	assert.Equal(t, Cursor{Y: 2, X: 0}, v.Cursor)
 }
 
@@ -79,7 +79,7 @@ func TestCursorDirections(t *testing.T) {
 
 func TestErase(t *testing.T) {
 	c := Format{Fg: Yellow, Intensity: Bright}
-	d := Format{}
+	d := DefaultFormat
 	for _, tc := range []struct {
 		command command
 		want    *VT100

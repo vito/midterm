@@ -63,14 +63,21 @@ type Format struct {
 	// Intensity is the text intensity (bright, normal, dim).
 	Intensity Intensity
 	// Various text properties.
-	Underscore, Conceal, Negative, Blink bool
+	Underscore, Conceal, Negative, Blink, Inverse bool
 }
 
-var zeroColor = color.RGBA{0, 0, 0, 0}
+// Default format is the type of text that is shown when no special properties
+// are set.
+var DefaultFormat = Format{
+	Fg: FgDefault,
+	Bg: BgDefault,
+}
+
+var zeroColor color.RGBA
 
 func (f Format) FgColor() color.RGBA {
 	c := FgDefault
-	if f.Fg != zeroColor {
+	if f.Fg != (color.RGBA{}) {
 		c = f.Fg
 	}
 	c.A = f.Intensity.alpha()
@@ -83,10 +90,15 @@ func toCss(c color.RGBA) string {
 
 func (f Format) css() string {
 	parts := make([]string, 0)
-	if f.Fg != zeroColor || f.Intensity != Normal {
+	fg, bg := f.Fg, f.Bg
+	if f.Inverse {
+		bg, fg = fg, bg
+	}
+
+	if fg != FgDefault || f.Intensity != Normal {
 		parts = append(parts, "color:"+toCss(f.FgColor()))
 	}
-	if f.Bg != zeroColor {
+	if bg != BgDefault {
 		// There is no intensity funny business with the bg color. We can emit
 		// it directly, since all the colors default to full opacity, and the background
 		// is opaque in terminals.
@@ -101,6 +113,7 @@ func (f Format) css() string {
 	if f.Blink {
 		parts = append(parts, "text-decoration:blink")
 	}
+
 	// We're not in performance sensitive code. Although this sort
 	// isn't strictly necessary, it gives us the nice property that
 	// the style of a particular set of attributes will always be
@@ -165,6 +178,10 @@ func NewVT100(y, x int) *VT100 {
 	for row := 0; row < y; row++ {
 		v.Content[row] = make([]rune, x)
 		v.Format[row] = make([]Format, x)
+
+		for col := 0; col < x; col++ {
+			v.clear(row, col)
+		}
 	}
 	return v
 }
@@ -198,21 +215,20 @@ func (v *VT100) HTML() string {
 	// Iterate each row. When the css changes, close the previous span, and open
 	// a new one. No need to close a span when the css is empty, we won't have
 	// opened one in the past.
-	css := ""
+	lastFormat := DefaultFormat
 	for y, row := range v.Content {
 		for x, r := range row {
-			newCss := v.Format[y][x].css()
-			if newCss != css {
-				if css != "" {
+			f := v.Format[y][x]
+			if f != lastFormat {
+				if lastFormat != DefaultFormat {
 					buf.WriteString("</span>")
 				}
-				if newCss != "" {
-					buf.WriteString(`<span style="` + newCss + `">`)
+				if f != DefaultFormat {
+					buf.WriteString(`<span style="` + f.css() + `">`)
 				}
-				css = newCss
+				lastFormat = f
 			}
-
-			if s, escapeNeeded := maybeEscapeRune(r); escapeNeeded {
+			if s := maybeEscapeRune(r); s != "" {
 				buf.WriteString(s)
 			} else {
 				buf.WriteRune(r)
@@ -227,21 +243,21 @@ func (v *VT100) HTML() string {
 
 // maybeEscapeRune potentially escapes a rune for display in an html document.
 // It only escapes the things that html.EscapeString does, but it works without allocating
-// a string to hold r.
-func maybeEscapeRune(r rune) (string, bool) {
+// a string to hold r. Returns an empty string if there is no need to escape.
+func maybeEscapeRune(r rune) string {
 	switch r {
 	case '&':
-		return "&amp;", true
+		return "&amp;"
 	case '\'':
-		return "&#39;", true
+		return "&#39;"
 	case '<':
-		return "&lt;", true
+		return "&lt;"
 	case '>':
-		return "&gt;", true
+		return "&gt;"
 	case '"':
-		return "&quot;", true
+		return "&quot;"
 	}
-	return "", false
+	return ""
 }
 
 // put puts r onto the current cursor's position, then advances the cursor.
@@ -345,7 +361,7 @@ func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
 
 func (v *VT100) clear(y, x int) {
 	v.Content[y][x] = ' '
-	v.Format[y][x] = Format{}
+	v.Format[y][x] = DefaultFormat
 }
 
 func (v *VT100) backspace() {

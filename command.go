@@ -109,6 +109,10 @@ func updateAttributes(v *VT100, args []int) {
 			f.Blink = true // We don't distinguish between blink speeds.
 		case 25:
 			f.Blink = false
+		case 7:
+			f.Inverse = true
+		case 27:
+			f.Inverse = false
 		case 8:
 			f.Conceal = true
 		case 28:
