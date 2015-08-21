@@ -13,6 +13,9 @@ import (
 // terminal does not implement. Such errors indicate that the client
 // program asked us to perform an action that we don't know how to.
 // It MAY be safe to continue trying to do additional operations.
+// This is a distinct category of errors from things we do know how
+// to do, but are badly encoded, or errors from the underlying io.RuneScanner
+// that we're reading commands from.
 type UnsupportedError struct {
 	error
 }
@@ -209,7 +212,7 @@ func home(v *VT100, args []int) error {
 func (c escapeCommand) display(v *VT100) error {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		return c.err(errors.New("unsupported command"))
+		return UnsupportedError{c.err(errors.New("unsupported command"))}
 	}
 
 	args, err := c.argInts()
@@ -267,7 +270,7 @@ func (c controlCommand) display(v *VT100) error {
 	case carriageReturn:
 		v.Cursor.X = 0
 	default:
-		return fmt.Errorf("control code not implemented %0x", uint(c))
+		return UnsupportedError{fmt.Errorf("control code not implemented %0x", uint(c))}
 	}
 	return nil
 }

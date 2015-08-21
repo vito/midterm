@@ -165,10 +165,10 @@ func NewVT100(y, x int) *VT100 {
 // These commands could include C0 codes, escape sequences, or printable runes.
 // You should not share this scanner with any other reader, as it may put the
 // terminal into a bad state.
+//
+// One special kind of error that this can return is an UnsupportedError. It's
+// probably best to check for these and skip, because they are likely recoverable.
 func (v *VT100) ReadOnce(s io.RuneScanner) error {
-	// TODO(jaguilar): Figure out what interface we really want here. There
-	// will need to be some concept of "idleness" for the terminal for our purposes.
-	// not sure if that should be handled here or outside.
 	cmd, err := readOneCommand(s)
 	if err != nil {
 		return err
