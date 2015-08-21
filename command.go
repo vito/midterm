@@ -7,16 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/golang/glog"
-)
-
-const (
-	// When the terminal asks that the color be set to a number,
-	// that number less the base is the vt100.Color type we should
-	// set for the corresponding region (background or foreground)
-	fgBase = 30
-	bgBase = 40
 )
 
 // command is a type of object that knows how to display itself
@@ -84,6 +74,8 @@ var (
 		Magenta,
 		Cyan,
 		White,
+		{}, // Not used.
+		DefaultColor,
 	}
 )
 
@@ -117,14 +109,10 @@ func updateAttributes(v *VT100, args []int) {
 			f.Conceal = true
 		case 28:
 			f.Conceal = false
-		case 30, 31, 32, 33, 34, 35, 36, 37:
+		case 30, 31, 32, 33, 34, 35, 36, 37, 39:
 			f.Fg = codeColors[x-30]
-		case 39:
-			f.Fg = DefaultColor
-		case 40, 41, 42, 43, 44, 45, 46, 47:
+		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
 			f.Bg = codeColors[x-40]
-		case 49:
-			f.Bg = DefaultColor
 			// 38 and 48 not supported. Maybe someday.
 		}
 	}
@@ -167,26 +155,22 @@ func home(v *VT100, args []int) {
 func (c escapeCommand) display(v *VT100) {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		c.log(errors.New("unsupported command"))
+		v.Err = c.err(errors.New("unsupported command"))
 		return
 	}
 
 	args, err := c.argInts()
 	if err != nil {
-		err = fmt.Errorf("while parsing int args: %v", err)
-		c.log(err)
-		v.Err = err
+		v.Err = c.err(fmt.Errorf("while parsing int args: %v", err))
+		return
 	}
 
 	f(v, args)
 }
 
-// log logs a problem with a escapeCommand at the warning level. Generally speaking,
-// only parse errors and unsupported commands will be logged. The idea here
-// is that, through logs, we'll be able to figure out what codes are unsupported
-// but actually used that we need to implement.
-func (c escapeCommand) log(e error) {
-	glog.Warningf("[%v] %s", e)
+// err enhances e with information about the current escape command
+func (c escapeCommand) err(e error) error {
+	return fmt.Errorf("[%v] %s", c, e)
 }
 
 var csArgsRe = regexp.MustCompile("^([^0-9]*)(.*)$")
@@ -237,7 +221,5 @@ func (c controlCommand) display(v *VT100) {
 		v.Cursor.X = 0
 	default:
 		v.Err = fmt.Errorf("control code not implemented %0x", uint(c))
-		glog.Warning(v.Err)
 	}
-
 }

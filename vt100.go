@@ -14,17 +14,15 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"github.com/golang/glog"
 )
 
-//+gen stringer
 type Intensity int
 
 const (
 	Normal Intensity = 0
 	Bright           = 1
 	Dim              = 2
+	// TODO(jaguilar): Should this be in a subpackage, since the names are pretty collide-y?
 )
 
 var (
@@ -172,21 +170,23 @@ func NewVT100(y, x int) *VT100 {
 	return v
 }
 
-// Updates v from r until
+// UpdateFrom reads r for updates until EOF or other error. If the error
+// is not io.EOF, v.Err will be set.
 func (v *VT100) UpdateFrom(r io.Reader) {
-	// TODO(jaguilar): Figure out what interface we really want here.
-
+	// TODO(jaguilar): Figure out what interface we really want here. There
+	// will need to be some concept of "idleness" for the terminal for our purposes.
+	// not sure if that should be handled here or outside.
 	s := newScanner(r)
 	for {
 		cmd, err := s.next()
 		if err != nil {
 			if err != io.EOF {
-				glog.Info(err)
+				v.Err = err
 			}
 			return
 		}
 
-		v.mu.Lock()
+		v.mu.Lock() // TODO(jaguilar): remove.
 		cmd.display(v)
 		v.mu.Unlock()
 	}

@@ -5,7 +5,10 @@ import (
 	"net/http"
 )
 
-type VT100Handler struct {
+// Handler is a type that knows how to serve the VT100 as an HTML
+// page. This is useful as a way to debug problems, or display
+// the state of the terminal to a user.
+type Handler struct {
 	*VT100
 }
 
@@ -22,7 +25,8 @@ var termTemplate = template.Must(template.New("vt100_html").Parse(`
 	</html>
 `))
 
-func (v VT100Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP is part of the http.Handler interface.
+func (v Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	v.mu.Lock() // TODO(jaguilar): bad software engineering.
 	termTemplate.Execute(w, struct {
 		Height, Width int
