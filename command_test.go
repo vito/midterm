@@ -33,7 +33,7 @@ func TestPutRune(t *testing.T) {
 	v := fromLines("abc\ndef\nghi")
 	v.Cursor.Y = 1
 	v.Cursor.X = 1
-	putRuneCommand('z').display(v)
+	runeCommand('z').display(v)
 
 	assert.Nil(t, v.Err)
 	assert.Equal(t, splitLines("abc\ndzf\nghi"), v.Content)

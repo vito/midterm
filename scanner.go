@@ -31,41 +31,42 @@ func (s *scanner) next() (command, error) {
 		return nil, fmt.Errorf("non-utf8 data from reader")
 	}
 
-	if r == escape || r == unicodeCsi { // At beginning of escape sequence.
+	if r == escape || r == monogramCsi { // At beginning of escape sequence.
 		s.UnreadRune()
-		return s.scanEscapeSequence()
+		return s.scanEscapeCommand()
 	}
 
-	// TODO(jaguilar): handle other control codes.
-
-	return putRuneCommand(r), nil
+	return runeCommand(r), nil
 }
 
 const (
-	escape     = '\u001b'
-	unicodeCsi = '\u009b'
+	// There are two ways to begin an escape sequence. One is to put the escape byte.
+	// The other is to put the single-rune control sequence indicator, which is equivalent
+	// to putting "\u001b[".
+	escape      = '\u001b'
+	monogramCsi = '\u009b'
 )
 
 var (
 	csEnd = &unicode.RangeTable{R16: []unicode.Range16{{Lo: 64, Hi: 126, Stride: 1}}}
 )
 
-// scanEscapeSequence scans to the end of the current escape sequence. The first
+// scanEscapeCommand scans to the end of the current escape sequence. The first
 // character
-func (s scanner) scanEscapeSequence() (command, error) {
+func (s scanner) scanEscapeCommand() (command, error) {
 	csi := false
 	esc, _, err := s.ReadRune()
 	if err != nil {
 		return nil, err
 	}
-	if esc != escape && esc != unicodeCsi {
-		panic(fmt.Errorf("not positioned at beginning of escape sequence, saw: %r", esc))
+	if esc != escape && esc != monogramCsi {
+		panic(fmt.Errorf("not positioned at beginning of escape sequence, saw: %v", esc))
 	}
-	if esc == unicodeCsi {
+	if esc == monogramCsi {
 		csi = true
 	}
 
-	var cmd bytes.Buffer
+	var args bytes.Buffer
 	quote := false
 	for i := 0; ; i++ {
 		r, _, err := s.ReadRune()
@@ -78,18 +79,17 @@ func (s scanner) scanEscapeSequence() (command, error) {
 		}
 
 		if !csi {
-			return newCSCommand(r, ""), nil
+			return newEscapeCommand(r, ""), nil
 		} else if quote == false && unicode.Is(csEnd, r) {
-			return newCSCommand(r, cmd.String()), nil
+			return newEscapeCommand(r, args.String()), nil
 		}
 
 		if r == '"' {
 			quote = !quote
 		}
 
-		// Otherwise, we're still in the args of the command, and this rune is one of
-		// those args.
-		if _, err := cmd.WriteRune(r); err != nil {
+		// Otherwise, we're still in the args, and this rune is one of those args.
+		if _, err := args.WriteRune(r); err != nil {
 			panic(err) // WriteRune cannot return an error from bytes.Buffer.
 		}
 	}

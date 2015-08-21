@@ -24,18 +24,18 @@ type command interface {
 	display(v *VT100)
 }
 
-// putRuneCommand is a simple command that just writes a rune
+// runeCommand is a simple command that just writes a rune
 // to the current cell and advances the cursor.
-type putRuneCommand rune
+type runeCommand rune
 
-func (r putRuneCommand) display(v *VT100) {
+func (r runeCommand) display(v *VT100) {
 	v.put(rune(r))
 }
 
-// csCommand is a control sequence command. It includes a variety
+// escapeCommand is a control sequence command. It includes a variety
 // of control and escape sequences that move and modify the cursor
 // or the terminal.
-type csCommand struct {
+type escapeCommand struct {
 	cmd  rune
 	args string
 }
@@ -159,27 +159,27 @@ func home(v *VT100, args []int) {
 	v.home(y, x)
 }
 
-func (c csCommand) display(v *VT100) {
+func (c escapeCommand) display(v *VT100) {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		c.log("unsupported command")
+		c.logf("unsupported command")
 		return
 	}
 
 	args, err := c.argInts()
 	if err != nil {
-		c.log(`while parsing args: %v`, err)
+		c.logf(`while parsing args: %v`, err)
 		v.Err = err
 	}
 
 	f(v, args)
 }
 
-// log logs a problem with a csCommand at the warning level. Generally speaking,
+// log logs a problem with a escapeCommand at the warning level. Generally speaking,
 // only parse errors and unsupported commands will be logged. The idea here
 // is that, through logs, we'll be able to figure out what codes are unsupported
 // but actually used that we need to implement.
-func (c csCommand) log(format string, x ...interface{}) {
+func (c escapeCommand) logf(format string, x ...interface{}) {
 	glog.Warningf("[%v] %s", fmt.Sprintf(format, x...))
 }
 
@@ -188,7 +188,7 @@ var csArgsRe = regexp.MustCompile("^([^0-9]*)(.*)$")
 // argInts parses c.args as a slice of at least arity ints. If the number
 // of ; separated arguments is less than arity, the remaining elements of
 // the result will be zero. errors only on integer parsing failure.
-func (c csCommand) argInts() ([]int, error) {
+func (c escapeCommand) argInts() ([]int, error) {
 	if len(c.args) == 0 {
 		return make([]int, 0), nil
 	}
@@ -204,7 +204,7 @@ func (c csCommand) argInts() ([]int, error) {
 	return out, nil
 }
 
-// newCSCommand makes a new control sequence command from cmd and args.
-func newCSCommand(cmd rune, args string) csCommand {
-	return csCommand{cmd, args}
+// newEscapeCommand makes a new control sequence command from cmd and args.
+func newEscapeCommand(cmd rune, args string) escapeCommand {
+	return escapeCommand{cmd, args}
 }

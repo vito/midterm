@@ -1,10 +1,11 @@
 package vt100
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestScan(t *testing.T) {
@@ -14,23 +15,23 @@ nextCase:
 		want []command
 	}{
 		{"fÜ", []command{
-			putRuneCommand('f'),
-			putRuneCommand('Ü'),
+			runeCommand('f'),
+			runeCommand('Ü'),
 		}},
 		{"\u001babc", []command{
-			csCommand{'a', ""},
-			putRuneCommand('b'),
-			putRuneCommand('c'),
+			escapeCommand{'a', ""},
+			runeCommand('b'),
+			runeCommand('c'),
 		}},
-		{"\u001b[123;31d", []command{csCommand{'d', "123;31"}}},
-		{"\u009b123;31d", []command{csCommand{'d', "123;31"}}},
+		{"\u001b[123;31d", []command{escapeCommand{'d', "123;31"}}},
+		{"\u009b123;31d", []command{escapeCommand{'d', "123;31"}}},
 		{"\u001b123", []command{
-			csCommand{'1', ""},
-			putRuneCommand('2'),
-			putRuneCommand('3'),
+			escapeCommand{'1', ""},
+			runeCommand('2'),
+			runeCommand('3'),
 		}},
 		{"\u001b[12;\"asd\"s", []command{
-			csCommand{'s', `12;"asd"`},
+			escapeCommand{'s', `12;"asd"`},
 		}},
 	} {
 		s := newScanner(strings.NewReader(testCase.in))
