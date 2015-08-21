@@ -53,6 +53,7 @@ func (i Intensity) alpha() uint8 {
 	}
 }
 
+// Format represents the display format of text on a terminal.
 type Format struct {
 	// Fg is the foreground color.
 	Fg color.RGBA
@@ -192,8 +193,8 @@ func (v *VT100) UpdateFrom(r io.Reader) {
 	}
 }
 
-// Html renders v as an HTML fragment. One idea for how to use this is to debug
-// the current state of the screen reader. We also use it in the tests.
+// HTML renders v as an HTML fragment. One idea for how to use this is to debug
+// the current state of the screen reader.
 func (v *VT100) HTML() string {
 	var buf bytes.Buffer
 	buf.WriteString(`<pre style="color:white;background-color:black;">`)
