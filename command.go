@@ -1,6 +1,7 @@
 package vt100
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"regexp"
@@ -162,13 +163,14 @@ func home(v *VT100, args []int) {
 func (c escapeCommand) display(v *VT100) {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		c.logf("unsupported command")
+		c.log(errors.New("unsupported command"))
 		return
 	}
 
 	args, err := c.argInts()
 	if err != nil {
-		c.logf(`while parsing args: %v`, err)
+		err = fmt.Errorf("while parsing int args: %v", err)
+		c.log(err)
 		v.Err = err
 	}
 
@@ -179,8 +181,8 @@ func (c escapeCommand) display(v *VT100) {
 // only parse errors and unsupported commands will be logged. The idea here
 // is that, through logs, we'll be able to figure out what codes are unsupported
 // but actually used that we need to implement.
-func (c escapeCommand) logf(format string, x ...interface{}) {
-	glog.Warningf("[%v] %s", fmt.Sprintf(format, x...))
+func (c escapeCommand) log(e error) {
+	glog.Warningf("[%v] %s", e)
 }
 
 var csArgsRe = regexp.MustCompile("^([^0-9]*)(.*)$")
@@ -207,4 +209,31 @@ func (c escapeCommand) argInts() ([]int, error) {
 // newEscapeCommand makes a new control sequence command from cmd and args.
 func newEscapeCommand(cmd rune, args string) escapeCommand {
 	return escapeCommand{cmd, args}
+}
+
+type controlCommand rune
+
+const (
+	backspace      controlCommand = '\b'
+	_horizontalTab                = '\t'
+	linefeed                      = '\n'
+	_verticalTab                  = '\v'
+	_formfeed                     = '\f'
+	carriageReturn                = '\r'
+)
+
+func (c controlCommand) display(v *VT100) {
+	switch c {
+	case backspace:
+		v.backspace()
+	case linefeed:
+		v.Cursor.Y++
+		v.Cursor.X = 0
+	case carriageReturn:
+		v.Cursor.X = 0
+	default:
+		v.Err = fmt.Errorf("control code not implemented %0x", uint(c))
+		glog.Warning(v.Err)
+	}
+
 }

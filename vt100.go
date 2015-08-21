@@ -348,6 +348,19 @@ func (v *VT100) clear(y, x int) {
 	v.Format[y][x] = Format{}
 }
 
+func (v *VT100) backspace() {
+	v.Cursor.X--
+	if v.Cursor.X < 0 {
+		if v.Cursor.Y == 0 {
+			v.Cursor.X = 0
+		} else {
+			v.Cursor.Y--
+			v.Cursor.X = v.Width - 1
+		}
+	}
+	v.clear(v.Cursor.Y, v.Cursor.X)
+}
+
 func (v *VT100) save() {
 	v.savedCursor = v.Cursor
 }

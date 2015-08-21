@@ -134,9 +134,42 @@ func TestErase(t *testing.T) {
 	}
 }
 
+func TestBackspace(t *testing.T) {
+	v := fromLines("BA..")
+	v.Cursor.Y, v.Cursor.X = 0, 2
+
+	controlCommand(backspace).display(v)
+	assert.Equal(t, fromLines("B ..").Content, v.Content)
+
+	v.Cursor.X = 0
+	controlCommand(backspace).display(v)
+	assert.Equal(t, 0, v.Cursor.X)
+
+	v = fromLines("..\n..")
+	v.Cursor.Y, v.Cursor.X = 1, 0
+	controlCommand(backspace).display(v)
+	assert.Equal(t, 0, v.Cursor.Y)
+	assert.Equal(t, 1, v.Cursor.X)
+}
+
+func TestLineFeed(t *testing.T) {
+	v := fromLines("AA\n..")
+	v.Cursor.X = 1
+	controlCommand(linefeed).display(v)
+	runeCommand('b').display(v)
+	assert.Equal(t, fromLines("AA\nb.").Content, v.Content)
+}
+
+func TestCarriageReturn(t *testing.T) {
+	v := fromLines("AA\n..")
+	v.Cursor.X = 1
+	controlCommand(carriageReturn).display(v)
+	runeCommand('b').display(v)
+	assert.Equal(t, fromLines("bA\n..").Content, v.Content)
+}
+
 func TestAttributes(t *testing.T) {
 	v := fromLines("....")
-
 	s := newScanner(strings.NewReader(
 		esc("[2ma") + esc("[5;22;31mb") + esc("[0mc") + esc("[4;46md")))
 	cmd, err := s.next()

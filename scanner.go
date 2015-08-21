@@ -36,6 +36,10 @@ func (s *scanner) next() (command, error) {
 		return s.scanEscapeCommand()
 	}
 
+	if unicode.IsControl(r) {
+		return controlCommand(r), nil
+	}
+
 	return runeCommand(r), nil
 }
 
