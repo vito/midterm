@@ -30,16 +30,16 @@ const (
 var (
 	// Technically RGBAs are supposed to be premultiplied. But CSS doesn't expect them
 	// that way, so we won't do it in this file.
-	BgDefault = color.RGBA{0, 0, 0, 255}
-	FgDefault = color.RGBA{255, 255, 255, Normal.alpha()}
-	Black     = color.RGBA{0, 0, 0, 255}
-	Red       = color.RGBA{255, 0, 0, 255}
-	Green     = color.RGBA{0, 255, 0, 255}
-	Yellow    = color.RGBA{255, 255, 0, 255}
-	Blue      = color.RGBA{0, 0, 255, 255}
-	Magenta   = color.RGBA{255, 0, 255, 255}
-	Cyan      = color.RGBA{0, 255, 255, 255}
-	White     = color.RGBA{255, 255, 255, 255}
+	DefaultColor = color.RGBA{0, 0, 0, 0}
+	// Our black has 255 alpha, so it will compare negatively with DefaultColor.
+	Black   = color.RGBA{0, 0, 0, 255}
+	Red     = color.RGBA{255, 0, 0, 255}
+	Green   = color.RGBA{0, 255, 0, 255}
+	Yellow  = color.RGBA{255, 255, 0, 255}
+	Blue    = color.RGBA{0, 0, 255, 255}
+	Magenta = color.RGBA{255, 0, 255, 255}
+	Cyan    = color.RGBA{0, 255, 255, 255}
+	White   = color.RGBA{255, 255, 255, 255}
 )
 
 func (i Intensity) alpha() uint8 {
@@ -66,18 +66,6 @@ type Format struct {
 	Underscore, Conceal, Negative, Blink, Inverse bool
 }
 
-// DefaultFormat is the type of text that is shown when no special properties
-// are set.
-var DefaultFormat = Format{
-	// This ends up being necessary because the zero values for colors aren't
-	// the ones we want for Fg and Bg. It's easier to do the css calculations
-	// if all the formats are what we expect from the beginning.
-	Fg: FgDefault,
-	Bg: BgDefault,
-}
-
-var zeroColor color.RGBA
-
 func toCss(c color.RGBA) string {
 	return fmt.Sprintf("rgba(%d, %d, %d, %f)", c.R, c.G, c.B, float32(c.A)/255)
 }
@@ -94,10 +82,10 @@ func (f Format) css() string {
 		fg.A = f.Intensity.alpha()
 	}
 
-	if fg != FgDefault {
+	if fg != DefaultColor {
 		parts = append(parts, "color:"+toCss(fg))
 	}
-	if bg != BgDefault {
+	if bg != DefaultColor {
 		parts = append(parts, "background-color:"+toCss(bg))
 	}
 	if f.Underscore {
@@ -171,9 +159,6 @@ func NewVT100(y, x int) *VT100 {
 		Width:   x,
 		Content: make([][]rune, y),
 		Format:  make([][]Format, y),
-		Cursor: Cursor{
-			F: DefaultFormat,
-		},
 	}
 
 	for row := 0; row < y; row++ {
@@ -216,15 +201,15 @@ func (v *VT100) HTML() string {
 	// Iterate each row. When the css changes, close the previous span, and open
 	// a new one. No need to close a span when the css is empty, we won't have
 	// opened one in the past.
-	lastFormat := DefaultFormat
+	var lastFormat Format
 	for y, row := range v.Content {
 		for x, r := range row {
 			f := v.Format[y][x]
 			if f != lastFormat {
-				if lastFormat != DefaultFormat {
+				if lastFormat != (Format{}) {
 					buf.WriteString("</span>")
 				}
-				if f != DefaultFormat {
+				if f != (Format{}) {
 					buf.WriteString(`<span style="` + f.css() + `">`)
 				}
 				lastFormat = f
@@ -362,7 +347,7 @@ func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
 
 func (v *VT100) clear(y, x int) {
 	v.Content[y][x] = ' '
-	v.Format[y][x] = DefaultFormat
+	v.Format[y][x] = Format{}
 }
 
 func (v *VT100) backspace() {

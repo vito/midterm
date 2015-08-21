@@ -94,7 +94,7 @@ func updateAttributes(v *VT100, args []int) {
 	for _, x := range args {
 		switch x {
 		case 0:
-			*f = DefaultFormat
+			*f = Format{}
 		case 1:
 			f.Intensity = Bright
 		case 2:
@@ -120,11 +120,11 @@ func updateAttributes(v *VT100, args []int) {
 		case 30, 31, 32, 33, 34, 35, 36, 37:
 			f.Fg = codeColors[x-30]
 		case 39:
-			f.Fg = FgDefault
+			f.Fg = DefaultColor
 		case 40, 41, 42, 43, 44, 45, 46, 47:
 			f.Bg = codeColors[x-40]
 		case 49:
-			f.Bg = BgDefault
+			f.Bg = DefaultColor
 			// 38 and 48 not supported. Maybe someday.
 		}
 	}

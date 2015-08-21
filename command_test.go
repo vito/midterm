@@ -60,10 +60,10 @@ func TestCursorDirections(t *testing.T) {
 	s := newScanner(strings.NewReader(moves))
 
 	want := []Cursor{
-		{Y: 2, X: 0, F: DefaultFormat},
-		{Y: 2, X: 2, F: DefaultFormat},
-		{Y: 1, X: 2, F: DefaultFormat},
-		{Y: 1, X: 1, F: DefaultFormat},
+		{Y: 2, X: 0},
+		{Y: 2, X: 2},
+		{Y: 1, X: 2},
+		{Y: 1, X: 1},
 	}
 	got := make([]Cursor, 0)
 
@@ -80,7 +80,7 @@ func TestCursorDirections(t *testing.T) {
 
 func TestErase(t *testing.T) {
 	c := Format{Fg: Yellow, Intensity: Bright}
-	d := DefaultFormat
+	var d Format
 	for _, tc := range []struct {
 		command command
 		want    *VT100
@@ -183,6 +183,6 @@ func TestAttributes(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Intensity: Dim}, {Blink: true, Fg: Red}, DefaultFormat, {Underscore: true, Bg: Cyan},
+		{Intensity: Dim}, {Blink: true, Fg: Red}, {}, {Underscore: true, Bg: Cyan},
 	}, v.Format[0])
 }
