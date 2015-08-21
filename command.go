@@ -2,6 +2,7 @@ package vt100
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"image/color"
 	"regexp"
@@ -18,6 +19,15 @@ import (
 // that we're reading commands from.
 type UnsupportedError struct {
 	error
+}
+
+var (
+	supportErrors = expvar.NewMap("vt100-unsupported-operations")
+)
+
+func supportError(e error) error {
+	supportErrors.Add(e.Error(), 1)
+	return UnsupportedError{e}
 }
 
 // command is a type of object that knows how to display itself
@@ -135,7 +145,7 @@ func updateAttributes(v *VT100, args []int) error {
 	}
 
 	if unsupported != nil {
-		return UnsupportedError{fmt.Errorf("unknown attributes: %v", unsupported)}
+		return supportError(fmt.Errorf("unknown attributes: %v", unsupported))
 	}
 	return nil
 }
@@ -212,7 +222,7 @@ func home(v *VT100, args []int) error {
 func (c escapeCommand) display(v *VT100) error {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		return UnsupportedError{c.err(errors.New("unsupported command"))}
+		return supportError(c.err(errors.New("unsupported command")))
 	}
 
 	args, err := c.argInts()
@@ -270,7 +280,7 @@ func (c controlCommand) display(v *VT100) error {
 	case carriageReturn:
 		v.Cursor.X = 0
 	default:
-		return UnsupportedError{fmt.Errorf("control code not implemented %0x", uint(c))}
+		return supportError(fmt.Errorf("control code not implemented %0x", uint(c)))
 	}
 	return nil
 }

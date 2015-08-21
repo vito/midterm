@@ -168,6 +168,8 @@ func NewVT100(y, x int) *VT100 {
 //
 // One special kind of error that this can return is an UnsupportedError. It's
 // probably best to check for these and skip, because they are likely recoverable.
+// Support errors are exported as expvars, so it is possibly not necessary to log
+// them.
 func (v *VT100) ReadOnce(s io.RuneScanner) error {
 	cmd, err := readOneCommand(s)
 	if err != nil {
