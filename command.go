@@ -152,10 +152,11 @@ func eraseLines(v *VT100, args []int) {
 }
 
 func home(v *VT100, args []int) {
-	if len(args) < 2 {
-		v.home(0, 0)
+	var y, x int
+	if len(args) >= 2 {
+		y, x = args[0], args[1]
 	}
-	v.home(args[0], args[1])
+	v.home(y, x)
 }
 
 func (c csCommand) display(v *VT100) {

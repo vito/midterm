@@ -2,33 +2,20 @@
 // you could use it to run a program like nethack that expects
 // a terminal as a subprocess. It tracks the position of the cursor,
 // colors, and various other aspects of the terminal's state, and
-// allows you to inspect them.
-//
-// This package's terminal does not support completion, readline,
-// or any of the other things you might expect if you were trying
-// to use it, say, to run a shell. It could run a subshell, but
-// mostly you'd use it for programs that operate in raw mode.
+// allows you to inspect them. Currently, we only handle raw mode,
+// no scrolling or prompt features.
 package vt100
 
 import (
 	"bytes"
 	"fmt"
 	"image/color"
+	"io"
 	"sort"
 	"strings"
-)
+	"sync"
 
-var (
-	BgDefault = color.RGBA{0, 0, 0, 0}
-	FgDefault = color.RGBA{255, 255, 255, 0}
-	Black     = color.RGBA{0, 0, 0, 0}
-	Red       = color.RGBA{255, 0, 0, 0}
-	Green     = color.RGBA{0, 255, 0, 0}
-	Yellow    = color.RGBA{255, 255, 0, 0}
-	Blue      = color.RGBA{0, 0, 255, 0}
-	Magenta   = color.RGBA{255, 0, 255, 0}
-	Cyan      = color.RGBA{0, 255, 255, 0}
-	White     = color.RGBA{255, 255, 255, 0}
+	"github.com/golang/glog"
 )
 
 // +gen stringer
@@ -38,6 +25,21 @@ const (
 	Normal Intensity = iota
 	Bright           = 1
 	Dim              = 2
+)
+
+// Technically RGBAs are supposed to be premultiplied. But CSS doesn't expect them
+// that way, so we won't do it in this file.
+var (
+	BgDefault = color.RGBA{0, 0, 0, 255}
+	FgDefault = color.RGBA{255, 255, 255, Normal.alpha()}
+	Black     = color.RGBA{0, 0, 0, 255}
+	Red       = color.RGBA{255, 0, 0, 255}
+	Green     = color.RGBA{0, 255, 0, 255}
+	Yellow    = color.RGBA{255, 255, 0, 255}
+	Blue      = color.RGBA{0, 0, 255, 255}
+	Magenta   = color.RGBA{255, 0, 255, 255}
+	Cyan      = color.RGBA{0, 255, 255, 255}
+	White     = color.RGBA{255, 255, 255, 255}
 )
 
 func (i Intensity) alpha() uint8 {
@@ -64,22 +66,31 @@ type Format struct {
 	Underscore, Conceal, Negative, Blink bool
 }
 
-func colorString(c color.RGBA) string {
-	return fmt.Sprintf("#%02x%02x%02x%02x", c.R, c.G, c.B, c.A)
+var zeroColor = color.RGBA{0, 0, 0, 0}
+
+func (f Format) FgColor() color.RGBA {
+	c := FgDefault
+	if f.Fg != zeroColor {
+		c = f.Fg
+	}
+	c.A = f.Intensity.alpha()
+	return c
 }
 
-func withIntensity(c color.RGBA, i Intensity) color.RGBA {
-	c.A = i.alpha()
-	return c
+func toCss(c color.RGBA) string {
+	return fmt.Sprintf("rgba(%d, %d, %d, %f)", c.R, c.G, c.B, float32(c.A)/255)
 }
 
 func (f Format) css() string {
 	parts := make([]string, 0)
-	if f.Fg != FgDefault {
-		parts = append(parts, "color:"+colorString(withIntensity(f.Fg, f.Intensity)))
+	if f.Fg != zeroColor || f.Intensity != Normal {
+		parts = append(parts, "color:"+toCss(f.FgColor()))
 	}
-	if f.Bg != BgDefault {
-		parts = append(parts, "background-color:"+colorString(withIntensity(f.Bg, f.Intensity)))
+	if f.Bg != zeroColor {
+		// There is no intensity funny business with the bg color. We can emit
+		// it directly, since all the colors default to full opacity, and the background
+		// is opaque in terminals.
+		parts = append(parts, "background-color:"+toCss(f.Bg))
 	}
 	if f.Underscore {
 		parts = append(parts, "text-decoration:underline")
@@ -135,6 +146,8 @@ type VT100 struct {
 	Err error
 
 	savedCursor Cursor
+
+	mu sync.Mutex
 }
 
 func NewVT100(y, x int) *VT100 {
@@ -156,10 +169,31 @@ func NewVT100(y, x int) *VT100 {
 	return v
 }
 
+// Updates v from r until
+func (v *VT100) UpdateFrom(r io.Reader) {
+	// TODO(jaguilar): Figure out what interface we really want here.
+
+	s := newScanner(r)
+	for {
+		cmd, err := s.next()
+		if err != nil {
+			if err != io.EOF {
+				glog.Info(err)
+			}
+			return
+		}
+
+		v.mu.Lock()
+		cmd.display(v)
+		v.mu.Unlock()
+	}
+}
+
 // Html renders v as an HTML fragment. One idea for how to use this is to debug
 // the current state of the screen reader. We also use it in the tests.
-func (v *VT100) Html() string {
+func (v *VT100) HTML() string {
 	var buf bytes.Buffer
+	buf.WriteString(`<pre style="color:white;background-color:black;">`)
 
 	// Iterate each row. When the css changes, close the previous span, and open
 	// a new one. No need to close a span when the css is empty, we won't have
@@ -184,8 +218,10 @@ func (v *VT100) Html() string {
 				buf.WriteRune(r)
 			}
 		}
-		buf.WriteString("<br>")
+		buf.WriteRune('\n')
 	}
+	buf.WriteString("</pre>")
+
 	return buf.String()
 }
 
@@ -223,7 +259,8 @@ func (v *VT100) advance() {
 		v.Cursor.Y++
 	}
 	if v.Cursor.Y >= v.Height {
-		v.Cursor.Y = 0 // TODO(jaguilar): is this right?
+		// TODO(jaguilar): if we implement scroll, this should probably scroll.
+		v.Cursor.Y = 0
 	}
 }
 
