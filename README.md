@@ -1,6 +1,8 @@
 #VT100
 
-![](https://travis-ci.org/jaguilar/vt100.svg?branch=master)
+[![Build Status](https://travis-ci.org/jaguilar/vt100.svg?branch=master)](https://travis-ci.org/jaguilar/vt100)
+
+[![GoDoc](https://godoc.org/github.com/jaguilar/vt100?status.svg)](https://godoc.org/github.com/jaguilar/vt100)
 
 This is a vt100 screen reader. It seems to do a pretty
 decent job of parsing the nethack input stream, which

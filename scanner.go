@@ -19,8 +19,8 @@ func newScanner(r io.Reader) *scanner {
 }
 
 // next advances to the next command in the stream. It will return the command
-// if it finds one. If it reaches eof, the command will be nil, as will the error.
-// Only if an actual error condition is observed will error be set.
+// if it finds one. If it receives any error, that error will be returned instead.
+// It is also an error if the input stream contains non-UTF8 data.
 func (s *scanner) next() (command, error) {
 	r, size, err := s.ReadRune()
 	if err != nil {
@@ -55,8 +55,8 @@ var (
 	csEnd = &unicode.RangeTable{R16: []unicode.Range16{{Lo: 64, Hi: 126, Stride: 1}}}
 )
 
-// scanEscapeCommand scans to the end of the current escape sequence. The first
-// character
+// scanEscapeCommand scans to the end of the current escape sequence. The scanner
+// must be positioned at an escape rune (esc or the unicode CSI).
 func (s scanner) scanEscapeCommand() (command, error) {
 	csi := false
 	esc, _, err := s.ReadRune()
