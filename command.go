@@ -155,7 +155,7 @@ func eraseLines(v *VT100, args []int) {
 func home(v *VT100, args []int) {
 	var y, x int
 	if len(args) >= 2 {
-		y, x = args[0], args[1]
+		y, x = args[0]-1, args[1]-1 // home args are 1-indexed.
 	}
 	v.home(y, x)
 }
