@@ -94,7 +94,7 @@ func updateAttributes(v *VT100, args []int) {
 	for _, x := range args {
 		switch x {
 		case 0:
-			*f = Format{}
+			*f = DefaultFormat
 		case 1:
 			f.Intensity = Bright
 		case 2:

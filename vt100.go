@@ -75,15 +75,6 @@ var DefaultFormat = Format{
 
 var zeroColor color.RGBA
 
-func (f Format) FgColor() color.RGBA {
-	c := FgDefault
-	if f.Fg != (color.RGBA{}) {
-		c = f.Fg
-	}
-	c.A = f.Intensity.alpha()
-	return c
-}
-
 func toCss(c color.RGBA) string {
 	return fmt.Sprintf("rgba(%d, %d, %d, %f)", c.R, c.G, c.B, float32(c.A)/255)
 }
@@ -95,14 +86,16 @@ func (f Format) css() string {
 		bg, fg = fg, bg
 	}
 
-	if fg != FgDefault || f.Intensity != Normal {
-		parts = append(parts, "color:"+toCss(f.FgColor()))
+	if f.Intensity != Normal {
+		// Intensity only applies to the text -- i.e., the foreground.
+		fg.A = f.Intensity.alpha()
+	}
+
+	if fg != FgDefault {
+		parts = append(parts, "color:"+toCss(fg))
 	}
 	if bg != BgDefault {
-		// There is no intensity funny business with the bg color. We can emit
-		// it directly, since all the colors default to full opacity, and the background
-		// is opaque in terminals.
-		parts = append(parts, "background-color:"+toCss(f.Bg))
+		parts = append(parts, "background-color:"+toCss(bg))
 	}
 	if f.Underscore {
 		parts = append(parts, "text-decoration:underline")
@@ -173,6 +166,9 @@ func NewVT100(y, x int) *VT100 {
 		Width:   x,
 		Content: make([][]rune, y),
 		Format:  make([][]Format, y),
+		Cursor: Cursor{
+			F: DefaultFormat,
+		},
 	}
 
 	for row := 0; row < y; row++ {
@@ -374,7 +370,6 @@ func (v *VT100) backspace() {
 			v.Cursor.X = v.Width - 1
 		}
 	}
-	v.clear(v.Cursor.Y, v.Cursor.X)
 }
 
 func (v *VT100) save() {
