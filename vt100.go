@@ -272,16 +272,33 @@ func (v *VT100) advance() {
 	}
 }
 
-// home moves the cursor to the coordinates y x.
+// home moves the cursor to the coordinates y x. If y x are out of bounds, v.Err
+// is set.
 func (v *VT100) home(y, x int) {
-	v.bounds(y, x)
+	y, x = v.sanitize(y, x)
 	v.Cursor.Y, v.Cursor.X = y, x
 }
 
-func (v *VT100) bounds(y, x int) {
+func (v *VT100) sanitize(y, x int) (int, int) {
 	if y < 0 || y >= v.Height || x < 0 || x >= v.Width {
-		panic(fmt.Errorf("out of bounds (%d, %d)", y, x))
+		v.Err = fmt.Errorf("out of bounds (%d, %d)", y, x)
+	} else {
+		return y, x
 	}
+
+	if y < 0 {
+		y = 0
+	}
+	if y >= v.Height {
+		y = v.Height - 1
+	}
+	if x < 0 {
+		x = 0
+	}
+	if x >= v.Width {
+		x = v.Width - 1
+	}
+	return y, x
 }
 
 // move moves the cursor according to the vector y x.
@@ -334,9 +351,8 @@ func (v *VT100) eraseLines(d eraseDirection) {
 }
 
 func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
-	v.bounds(y1, x1)
-	v.bounds(y2, x2)
-
+	// Do not sanitize or bounds-check these coordinates, since they come from the
+	// programmer (me). We should panic if any of them are out of bounds.
 	if y1 > y2 {
 		y1, y2 = y2, y1
 	}
