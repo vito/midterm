@@ -13,7 +13,6 @@ import (
 	"io"
 	"sort"
 	"strings"
-	"sync"
 )
 
 type Intensity int
@@ -127,25 +126,11 @@ type VT100 struct {
 	// Format is the display properties of each cell.
 	Format [][]Format
 
+	// Cursor is the current state of the cursor.
 	Cursor Cursor
-
-	// Err is the latest error seen while parsing the input stream.
-	// This will be set, e.g., when we encounter an unknown operation,
-	// or if the command stream is malformed. You may read it and quit,
-	// or continue. Given the nature of terminal updates, it is possible
-	// that continuing will return you to a valid state -- for example,
-	// if there is a screen wipe, or through the normal course of updating
-	// the screen.
-	//
-	// If you choose to continue, we recommend that you clear this field
-	// by setting it to nil after you are done with it.
-	Err error
 
 	// savedCursor is the state of the cursor last time save() was called.
 	savedCursor Cursor
-
-	// TODO(jaguilar): remove.
-	mu sync.Mutex
 }
 
 // NewVT100 creates a new VT100 object with the specified dimensions. y and x
@@ -176,26 +161,20 @@ func NewVT100(y, x int) *VT100 {
 	return v
 }
 
-// UpdateFrom reads r for updates until EOF or other error. If the error
-// is not io.EOF, v.Err will be set.
-func (v *VT100) UpdateFrom(r io.Reader) {
+// ReadOnce reads a single ansi terminal command from the provided RuneScanner.
+// These commands could include C0 codes, escape sequences, or printable runes.
+// You should not share this scanner with any other reader, as it may put the
+// terminal into a bad state.
+func (v *VT100) ReadOnce(s io.RuneScanner) error {
 	// TODO(jaguilar): Figure out what interface we really want here. There
 	// will need to be some concept of "idleness" for the terminal for our purposes.
 	// not sure if that should be handled here or outside.
-	s := newScanner(r)
-	for {
-		cmd, err := s.next()
-		if err != nil {
-			if err != io.EOF {
-				v.Err = err
-			}
-			return
-		}
-
-		v.mu.Lock() // TODO(jaguilar): remove.
-		cmd.display(v)
-		v.mu.Unlock()
+	cmd, err := readOneCommand(s)
+	if err != nil {
+		return err
 	}
+	cmd.display(v)
+	return nil
 }
 
 // HTML renders v as an HTML fragment. One idea for how to use this is to debug
@@ -275,36 +254,7 @@ func (v *VT100) advance() {
 // home moves the cursor to the coordinates y x. If y x are out of bounds, v.Err
 // is set.
 func (v *VT100) home(y, x int) {
-	y, x = v.sanitize(y, x)
 	v.Cursor.Y, v.Cursor.X = y, x
-}
-
-func (v *VT100) sanitize(y, x int) (int, int) {
-	if y < 0 || y >= v.Height || x < 0 || x >= v.Width {
-		v.Err = fmt.Errorf("out of bounds (%d, %d)", y, x)
-	} else {
-		return y, x
-	}
-
-	if y < 0 {
-		y = 0
-	}
-	if y >= v.Height {
-		y = v.Height - 1
-	}
-	if x < 0 {
-		x = 0
-	}
-	if x >= v.Width {
-		x = v.Width - 1
-	}
-	return y, x
-}
-
-// move moves the cursor according to the vector y x.
-func (v *VT100) move(yy, xx int) {
-	y, x := v.Cursor.Y+yy, v.Cursor.X+xx
-	v.home(y, x)
 }
 
 // eraseDirection is the logical direction in which an erase command happens,

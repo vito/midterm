@@ -34,10 +34,10 @@ nextCase:
 			escapeCommand{'s', `12;"asd"`},
 		}},
 	} {
-		s := newScanner(strings.NewReader(testCase.in))
+		s := strings.NewReader(testCase.in)
 
 		for i := 0; i < len(testCase.want); i++ {
-			got, err := s.next()
+			got, err := readOneCommand(s)
 			if err == io.EOF {
 				t.Error("unexpected eof")
 				continue nextCase
@@ -49,7 +49,7 @@ nextCase:
 
 			assert.Equal(t, testCase.want[i], got)
 		}
-		_, err := s.next()
+		_, err := readOneCommand(s)
 		assert.Equal(t, err, io.EOF)
 	}
 }

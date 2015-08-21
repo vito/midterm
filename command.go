@@ -9,18 +9,27 @@ import (
 	"strings"
 )
 
+// UnsupportedError indicates that we parsed an operation that this
+// terminal does not implement. Such errors indicate that the client
+// program asked us to perform an action that we don't know how to.
+// It MAY be safe to continue trying to do additional operations.
+type UnsupportedError struct {
+	error
+}
+
 // command is a type of object that knows how to display itself
 // to the terminal.
 type command interface {
-	display(v *VT100)
+	display(v *VT100) error
 }
 
 // runeCommand is a simple command that just writes a rune
 // to the current cell and advances the cursor.
 type runeCommand rune
 
-func (r runeCommand) display(v *VT100) {
+func (r runeCommand) display(v *VT100) error {
 	v.put(rune(r))
+	return nil
 }
 
 // escapeCommand is a control sequence command. It includes a variety
@@ -31,7 +40,7 @@ type escapeCommand struct {
 	args string
 }
 
-type intHandler func(*VT100, []int)
+type intHandler func(*VT100, []int) error
 
 var (
 	// intHandlers are handlers for which all arguments are numbers.
@@ -56,12 +65,14 @@ var (
 	}
 )
 
-func save(v *VT100, _ []int) {
+func save(v *VT100, _ []int) error {
 	v.save()
+	return nil
 }
 
-func unsave(v *VT100, _ []int) {
+func unsave(v *VT100, _ []int) error {
 	v.unsave()
+	return nil
 }
 
 var (
@@ -80,9 +91,10 @@ var (
 )
 
 // A command to update the attributes of the cursor based on the arg list.
-func updateAttributes(v *VT100, args []int) {
+func updateAttributes(v *VT100, args []int) error {
 	f := &v.Cursor.F
 
+	var unsupported []int
 	for _, x := range args {
 		switch x {
 		case 0:
@@ -114,58 +126,98 @@ func updateAttributes(v *VT100, args []int) {
 		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
 			f.Bg = codeColors[x-40]
 			// 38 and 48 not supported. Maybe someday.
+		default:
+			unsupported = append(unsupported, x)
 		}
 	}
+
+	if unsupported != nil {
+		return UnsupportedError{fmt.Errorf("unknown attributes: %v", unsupported)}
+	}
+	return nil
 }
 
-func relativeMove(y, x int) func(*VT100, []int) {
-	return func(v *VT100, args []int) {
+func relativeMove(y, x int) func(*VT100, []int) error {
+	return func(v *VT100, args []int) error {
 		c := 1
 		if len(args) >= 1 {
 			c = args[0]
 		}
-		v.move(y*c, x*c)
+		// home is 1-indexed, because that's what the terminal sends us. We want to
+		// reuse its sanitization scheme, so we'll just modify our args by that amount.
+		return home(v, []int{v.Cursor.Y + y*c + 1, v.Cursor.X + x*c + 1})
 	}
 }
 
-func eraseColumns(v *VT100, args []int) {
+func eraseColumns(v *VT100, args []int) error {
 	d := eraseForward
 	if len(args) > 0 {
 		d = eraseDirection(args[0])
+	}
+	if d > eraseAll {
+		return fmt.Errorf("unknown erase direction: %d", d)
 	}
 	v.eraseColumns(d)
+	return nil
 }
 
-func eraseLines(v *VT100, args []int) {
+func eraseLines(v *VT100, args []int) error {
 	d := eraseForward
 	if len(args) > 0 {
 		d = eraseDirection(args[0])
 	}
+	if d > eraseAll {
+		return fmt.Errorf("unknown erase direction: %d", d)
+	}
 	v.eraseLines(d)
+	return nil
 }
 
-func home(v *VT100, args []int) {
+func sanitize(v *VT100, y, x int) (int, int, error) {
+	var err error
+	if y < 0 || y >= v.Height || x < 0 || x >= v.Width {
+		err = fmt.Errorf("out of bounds (%d, %d)", y, x)
+	} else {
+		return y, x, nil
+	}
+
+	if y < 0 {
+		y = 0
+	}
+	if y >= v.Height {
+		y = v.Height - 1
+	}
+	if x < 0 {
+		x = 0
+	}
+	if x >= v.Width {
+		x = v.Width - 1
+	}
+	return y, x, err
+}
+
+func home(v *VT100, args []int) error {
 	var y, x int
 	if len(args) >= 2 {
 		y, x = args[0]-1, args[1]-1 // home args are 1-indexed.
 	}
-	v.home(y, x)
+	y, x, err := sanitize(v, y, x) // Clamp y and x to the bounds of the terminal.
+	v.home(y, x)                   // Try to do something like what the client asked.
+	return err
 }
 
-func (c escapeCommand) display(v *VT100) {
+func (c escapeCommand) display(v *VT100) error {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		v.Err = c.err(errors.New("unsupported command"))
-		return
+		return c.err(errors.New("unsupported command"))
 	}
 
 	args, err := c.argInts()
 	if err != nil {
-		v.Err = c.err(fmt.Errorf("while parsing int args: %v", err))
-		return
+		return c.err(fmt.Errorf("while parsing int args: %v", err))
 	}
 
-	f(v, args)
+	return f(v, args)
 }
 
 // err enhances e with information about the current escape command
@@ -194,11 +246,6 @@ func (c escapeCommand) argInts() ([]int, error) {
 	return out, nil
 }
 
-// newEscapeCommand makes a new control sequence command from cmd and args.
-func newEscapeCommand(cmd rune, args string) escapeCommand {
-	return escapeCommand{cmd, args}
-}
-
 type controlCommand rune
 
 const (
@@ -210,7 +257,7 @@ const (
 	carriageReturn                = '\r'
 )
 
-func (c controlCommand) display(v *VT100) {
+func (c controlCommand) display(v *VT100) error {
 	switch c {
 	case backspace:
 		v.backspace()
@@ -220,6 +267,7 @@ func (c controlCommand) display(v *VT100) {
 	case carriageReturn:
 		v.Cursor.X = 0
 	default:
-		v.Err = fmt.Errorf("control code not implemented %0x", uint(c))
+		return fmt.Errorf("control code not implemented %0x", uint(c))
 	}
+	return nil
 }

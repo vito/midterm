@@ -1,7 +1,6 @@
 package vt100
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -11,17 +10,13 @@ import (
 // scanner is a type that takes a stream of bytes destined for a terminal
 // and turns it into commands that update our terminal screen reader.
 type scanner struct {
-	*bufio.Reader
-}
-
-func newScanner(r io.Reader) *scanner {
-	return &scanner{bufio.NewReaderSize(r, 256)}
+	io.RuneScanner
 }
 
 // next advances to the next command in the stream. It will return the command
 // if it finds one. If it receives any error, that error will be returned instead.
 // It is also an error if the input stream contains non-UTF8 data.
-func (s *scanner) next() (command, error) {
+func readOneCommand(s io.RuneScanner) (command, error) {
 	r, size, err := s.ReadRune()
 	if err != nil {
 		return nil, err
@@ -33,7 +28,7 @@ func (s *scanner) next() (command, error) {
 
 	if r == escape || r == monogramCsi { // At beginning of escape sequence.
 		s.UnreadRune()
-		return s.scanEscapeCommand()
+		return scanEscapeCommand(s)
 	}
 
 	if unicode.IsControl(r) {
@@ -57,7 +52,7 @@ var (
 
 // scanEscapeCommand scans to the end of the current escape sequence. The scanner
 // must be positioned at an escape rune (esc or the unicode CSI).
-func (s scanner) scanEscapeCommand() (command, error) {
+func scanEscapeCommand(s io.RuneScanner) (command, error) {
 	csi := false
 	esc, _, err := s.ReadRune()
 	if err != nil {
@@ -83,9 +78,9 @@ func (s scanner) scanEscapeCommand() (command, error) {
 		}
 
 		if !csi {
-			return newEscapeCommand(r, ""), nil
+			return escapeCommand{r, ""}, nil
 		} else if quote == false && unicode.Is(csEnd, r) {
-			return newEscapeCommand(r, args.String()), nil
+			return escapeCommand{r, args.String()}, nil
 		}
 
 		if r == '"' {

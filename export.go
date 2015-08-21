@@ -31,10 +31,9 @@ var termTemplate = template.Must(template.New("vt100_html").Parse(`
 
 // ServeHTTP is part of the http.Handler interface.
 func (v Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	v.mu.Lock() // TODO(jaguilar): bad software engineering.
+	// TODO(jaguilar): this is a data race.
 	termTemplate.Execute(w, struct {
 		Height, Width int
 		ConsoleHTML   template.HTML
 	}{v.Height, v.Width, template.HTML(v.HTML())})
-	v.mu.Unlock()
 }

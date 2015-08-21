@@ -22,7 +22,7 @@ func esc(s string) string {
 }
 
 func cmd(s string) command {
-	cmd, err := newScanner(strings.NewReader(s)).next()
+	cmd, err := readOneCommand(strings.NewReader(s))
 	if err != nil {
 		panic(err)
 	}
@@ -33,9 +33,9 @@ func TestPutRune(t *testing.T) {
 	v := fromLines("abc\ndef\nghi")
 	v.Cursor.Y = 1
 	v.Cursor.X = 1
-	runeCommand('z').display(v)
+	err := runeCommand('z').display(v)
 
-	assert.Nil(t, v.Err)
+	assert.Nil(t, err)
 	assert.Equal(t, splitLines("abc\ndzf\nghi"), v.Content)
 	assert.Equal(t, 2, v.Cursor.X)
 	assert.Equal(t, 1, v.Cursor.Y)
@@ -57,7 +57,7 @@ func TestCursorDirections(t *testing.T) {
 		esc("[A"),  // up (no args = 1)
 		esc("[1D"), // left
 	}, "") // End state: +1, +1
-	s := newScanner(strings.NewReader(moves))
+	s := strings.NewReader(moves)
 
 	want := []Cursor{
 		{Y: 2, X: 0},
@@ -67,11 +67,11 @@ func TestCursorDirections(t *testing.T) {
 	}
 	got := make([]Cursor, 0)
 
-	cmd, err := s.next()
+	cmd, err := readOneCommand(s)
 	for err == nil {
 		cmd.display(v)
 		got = append(got, v.Cursor)
-		cmd, err = s.next()
+		cmd, err = readOneCommand(s)
 	}
 	if assert.Equal(t, err, io.EOF) {
 		assert.Equal(t, want, got)
@@ -125,8 +125,9 @@ func TestErase(t *testing.T) {
 		v.Cursor = Cursor{Y: 1, X: 2}
 		beforeCursor := v.Cursor
 
-		tc.command.display(v)
+		err := tc.command.display(v)
 
+		assert.Nil(t, err)
 		assert.Equal(t, tc.want.Content, v.Content, "while evaluating ", tc.command)
 		assert.Equal(t, tc.want.Format, v.Format, "while evaluating ", tc.command)
 		// Check the cursor separately. We don't set it on any of the test cases
@@ -173,12 +174,12 @@ func TestCarriageReturn(t *testing.T) {
 
 func TestAttributes(t *testing.T) {
 	v := fromLines("....")
-	s := newScanner(strings.NewReader(
-		esc("[2ma") + esc("[5;22;31mb") + esc("[0mc") + esc("[4;46md")))
-	cmd, err := s.next()
+	s := strings.NewReader(
+		esc("[2ma") + esc("[5;22;31mb") + esc("[0mc") + esc("[4;46md"))
+	cmd, err := readOneCommand(s)
 	for err == nil {
 		cmd.display(v)
-		cmd, err = s.next()
+		cmd, err = readOneCommand(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
