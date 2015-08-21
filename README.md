@@ -1,5 +1,7 @@
 #VT100
 
+![](https://travis-ci.org/jaguilar/vt100.svg?branch=master)
+
 This is a vt100 screen reader. It seems to do a pretty
 decent job of parsing the nethack input stream, which
 is all I want it for anyway.
