@@ -18,18 +18,18 @@ import (
 	"github.com/golang/glog"
 )
 
-// +gen stringer
+//+gen stringer
 type Intensity int
 
 const (
-	Normal Intensity = iota
+	Normal Intensity = 0
 	Bright           = 1
 	Dim              = 2
 )
 
-// Technically RGBAs are supposed to be premultiplied. But CSS doesn't expect them
-// that way, so we won't do it in this file.
 var (
+	// Technically RGBAs are supposed to be premultiplied. But CSS doesn't expect them
+	// that way, so we won't do it in this file.
 	BgDefault = color.RGBA{0, 0, 0, 255}
 	FgDefault = color.RGBA{255, 255, 255, Normal.alpha()}
 	Black     = color.RGBA{0, 0, 0, 255}
@@ -66,9 +66,12 @@ type Format struct {
 	Underscore, Conceal, Negative, Blink, Inverse bool
 }
 
-// Default format is the type of text that is shown when no special properties
+// DefaultFormat is the type of text that is shown when no special properties
 // are set.
 var DefaultFormat = Format{
+	// This ends up being necessary because the zero values for colors aren't
+	// the ones we want for Fg and Bg. It's easier to do the css calculations
+	// if all the formats are what we expect from the beginning.
 	Fg: FgDefault,
 	Bg: BgDefault,
 }
@@ -117,26 +120,26 @@ func (f Format) css() string {
 	return strings.Join(parts, ";")
 }
 
+// Cursor represents both the position and text type of the cursor.
 type Cursor struct {
-	// The position of the cursor.
+	// Y and X are the coordinates.
 	Y, X int
 
-	// The format of the text that will be emitted.
+	// F is the format that will be displayed.
 	F Format
 }
 
+// VT100 represents a simplified, raw VT100 terminal.
 type VT100 struct {
-	// The width and height of the terminal. Modification only via SetDim.
+	// Height and Width are the dimensions of the terminal.
 	Height, Width int
 
-	// The textual content of the terminal. Only UTF-8 encoding is currently
-	// supported.
+	// Content is the text in the terminal.
 	Content [][]rune
 
-	// The text format of each cell.
+	// Format is the display properties of each cell.
 	Format [][]Format
 
-	// Cursor is the current state of the cursor.
 	Cursor Cursor
 
 	// Err is the latest error seen while parsing the input stream.
@@ -151,8 +154,10 @@ type VT100 struct {
 	// by setting it to nil after you are done with it.
 	Err error
 
+	// savedCursor is the state of the cursor last time save() was called.
 	savedCursor Cursor
 
+	// TODO(jaguilar): remove.
 	mu sync.Mutex
 }
 

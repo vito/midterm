@@ -44,7 +44,8 @@ func TestPutRune(t *testing.T) {
 func TestMoveCursor(t *testing.T) {
 	v := fromLines("abc\ndef\nghi")
 	cmd(esc("[3;1H")).display(v)
-	assert.Equal(t, Cursor{Y: 2, X: 0}, v.Cursor)
+	assert.Equal(t, 2, v.Cursor.Y)
+	assert.Equal(t, 0, v.Cursor.X)
 }
 
 func TestCursorDirections(t *testing.T) {
@@ -59,10 +60,10 @@ func TestCursorDirections(t *testing.T) {
 	s := newScanner(strings.NewReader(moves))
 
 	want := []Cursor{
-		{Y: 2, X: 0},
-		{Y: 2, X: 2},
-		{Y: 1, X: 2},
-		{Y: 1, X: 1},
+		{Y: 2, X: 0, F: DefaultFormat},
+		{Y: 2, X: 2, F: DefaultFormat},
+		{Y: 1, X: 2, F: DefaultFormat},
+		{Y: 1, X: 1, F: DefaultFormat},
 	}
 	got := make([]Cursor, 0)
 
@@ -139,7 +140,9 @@ func TestBackspace(t *testing.T) {
 	v.Cursor.Y, v.Cursor.X = 0, 2
 
 	controlCommand(backspace).display(v)
-	assert.Equal(t, fromLines("B ..").Content, v.Content)
+	// Backspace doesn't actually delete text.
+	assert.Equal(t, fromLines("BA..").Content, v.Content)
+	assert.Equal(t, 1, v.Cursor.X)
 
 	v.Cursor.X = 0
 	controlCommand(backspace).display(v)
@@ -180,6 +183,6 @@ func TestAttributes(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Intensity: Dim}, {Blink: true, Fg: Red}, {}, {Underscore: true, Bg: Cyan},
+		{Intensity: Dim}, {Blink: true, Fg: Red}, DefaultFormat, {Underscore: true, Bg: Cyan},
 	}, v.Format[0])
 }
