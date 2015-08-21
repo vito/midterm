@@ -148,6 +148,11 @@ type VT100 struct {
 	mu sync.Mutex
 }
 
+// NewVT100 creates a new VT100 object with the specified dimensions. y and x
+// must both be greater than zero.
+//
+// Each cell is set to contain a ' ' rune, and all formats are left as the
+// default.
 func NewVT100(y, x int) *VT100 {
 	if y == 0 || x == 0 {
 		panic(fmt.Errorf("invalid dim (%d, %d)", y, x))
