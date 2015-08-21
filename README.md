@@ -26,3 +26,5 @@ Not currently supported (and no plans to support):
 * Scrolling
 * Prompts
 * Other cooked mode features
+
+The API is not stable! This is a v0 package.
