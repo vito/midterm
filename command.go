@@ -30,8 +30,8 @@ func supportError(e error) error {
 	return UnsupportedError{e}
 }
 
-// command is a type of object that knows how to display itself
-// to the terminal.
+// Command is a type of object that the terminal can process to perform
+// an update.
 type Command interface {
 	display(v *VT100) error
 }

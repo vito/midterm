@@ -7,8 +7,16 @@ import (
 	"unicode"
 )
 
-// Decode decodes one command from s. This Command can then be passed to the VT100
-// to modify it. You should not share s with any other reader, because it could leave
+// Decode decodes one ANSI terminal command from s.
+//
+// s should be connected to a client program that expects an
+// ANSI terminal on the other end. It will push bytes to us that we are meant
+// to intepret as terminal control codes, or text to place onto the terminal.
+//
+// This Command alone does not actually update the terminal. You need to pass
+// it to VT100.Process().
+//
+// You should not share s with any other reader, because it could leave
 // the stream in an invalid state.
 func Decode(s io.RuneScanner) (Command, error) {
 	r, size, err := s.ReadRune()

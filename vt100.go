@@ -166,7 +166,8 @@ func NewVT100(y, x int) *VT100 {
 // One special kind of error that this can return is an UnsupportedError. It's
 // probably best to check for these and skip, because they are likely recoverable.
 // Support errors are exported as expvars, so it is possibly not necessary to log
-// them.
+// them. If you want to check what's failed, start a debug http server and examine
+// the vt100-unsupported-commands field in /debug/vars.
 func (v *VT100) Process(c Command) error {
 	return c.display(v)
 }
