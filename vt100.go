@@ -1,9 +1,14 @@
-// package vt100 implements a simplified ansi terminal emulator. For example,
-// you could use it to run a program like nethack that expects
+// package vt100 implements a quick-and-dirty programmable ANSI terminal emulator.
+//
+// You could, for example, use it to run a program like nethack that expects
 // a terminal as a subprocess. It tracks the position of the cursor,
 // colors, and various other aspects of the terminal's state, and
-// allows you to inspect them. Currently, we only handle raw mode, with no
-// cooked mode features like scrolling.
+// allows you to inspect them.
+//
+// We do very much mean the dirty part. It's not that we think it might have
+// bugs. It's that we're SURE it does. Currently, we only handle raw mode, with no
+// cooked mode features like scrolling. We also misinterpret some of the control
+// codes, which may or may not matter for your purpose.
 package vt100
 
 import (
