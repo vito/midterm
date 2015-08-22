@@ -32,7 +32,7 @@ func supportError(e error) error {
 
 // command is a type of object that knows how to display itself
 // to the terminal.
-type command interface {
+type Command interface {
 	display(v *VT100) error
 }
 
@@ -51,6 +51,10 @@ func (r runeCommand) display(v *VT100) error {
 type escapeCommand struct {
 	cmd  rune
 	args string
+}
+
+func (c escapeCommand) String() string {
+	return fmt.Sprintf("[%q %U](%v)", c.cmd, c.cmd, c.args)
 }
 
 type intHandler func(*VT100, []int) error
@@ -235,7 +239,7 @@ func (c escapeCommand) display(v *VT100) error {
 
 // err enhances e with information about the current escape command
 func (c escapeCommand) err(e error) error {
-	return fmt.Errorf("[%v] %s", c, e)
+	return fmt.Errorf("%s: %s", c, e)
 }
 
 var csArgsRe = regexp.MustCompile("^([^0-9]*)(.*)$")

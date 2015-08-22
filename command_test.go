@@ -21,8 +21,8 @@ func esc(s string) string {
 	return "\u001b" + s
 }
 
-func cmd(s string) command {
-	cmd, err := readOneCommand(strings.NewReader(s))
+func cmd(s string) Command {
+	cmd, err := Decode(strings.NewReader(s))
 	if err != nil {
 		panic(err)
 	}
@@ -33,9 +33,8 @@ func TestPutRune(t *testing.T) {
 	v := fromLines("abc\ndef\nghi")
 	v.Cursor.Y = 1
 	v.Cursor.X = 1
-	err := runeCommand('z').display(v)
 
-	assert.Nil(t, err)
+	assert.Nil(t, v.Process(runeCommand('z')))
 	assert.Equal(t, splitLines("abc\ndzf\nghi"), v.Content)
 	assert.Equal(t, 2, v.Cursor.X)
 	assert.Equal(t, 1, v.Cursor.Y)
@@ -43,7 +42,7 @@ func TestPutRune(t *testing.T) {
 
 func TestMoveCursor(t *testing.T) {
 	v := fromLines("abc\ndef\nghi")
-	cmd(esc("[3;1H")).display(v)
+	assert.Nil(t, v.Process(cmd(esc("[3;1H"))))
 	assert.Equal(t, 2, v.Cursor.Y)
 	assert.Equal(t, 0, v.Cursor.X)
 }
@@ -67,11 +66,11 @@ func TestCursorDirections(t *testing.T) {
 	}
 	got := make([]Cursor, 0)
 
-	cmd, err := readOneCommand(s)
+	cmd, err := Decode(s)
 	for err == nil {
-		cmd.display(v)
+		assert.Nil(t, v.Process(cmd))
 		got = append(got, v.Cursor)
-		cmd, err = readOneCommand(s)
+		cmd, err = Decode(s)
 	}
 	if assert.Equal(t, err, io.EOF) {
 		assert.Equal(t, want, got)
@@ -82,7 +81,7 @@ func TestErase(t *testing.T) {
 	c := Format{Fg: Yellow, Intensity: Bright}
 	var d Format
 	for _, tc := range []struct {
-		command command
+		command Command
 		want    *VT100
 	}{
 		{cmd(esc("[K")), fromLinesAndFormats("abcd\nef  \nijkl", [][]Format{
@@ -125,9 +124,7 @@ func TestErase(t *testing.T) {
 		v.Cursor = Cursor{Y: 1, X: 2}
 		beforeCursor := v.Cursor
 
-		err := tc.command.display(v)
-
-		assert.Nil(t, err)
+		assert.Nil(t, v.Process(tc.command))
 		assert.Equal(t, tc.want.Content, v.Content, "while evaluating ", tc.command)
 		assert.Equal(t, tc.want.Format, v.Format, "while evaluating ", tc.command)
 		// Check the cursor separately. We don't set it on any of the test cases
@@ -140,7 +137,7 @@ func TestBackspace(t *testing.T) {
 	v := fromLines("BA..")
 	v.Cursor.Y, v.Cursor.X = 0, 2
 
-	controlCommand(backspace).display(v)
+	assert.Nil(t, v.Process(controlCommand(backspace)))
 	// Backspace doesn't actually delete text.
 	assert.Equal(t, fromLines("BA..").Content, v.Content)
 	assert.Equal(t, 1, v.Cursor.X)
@@ -151,7 +148,7 @@ func TestBackspace(t *testing.T) {
 
 	v = fromLines("..\n..")
 	v.Cursor.Y, v.Cursor.X = 1, 0
-	controlCommand(backspace).display(v)
+	assert.Nil(t, v.Process(controlCommand(backspace)))
 	assert.Equal(t, 0, v.Cursor.Y)
 	assert.Equal(t, 1, v.Cursor.X)
 }
@@ -159,16 +156,16 @@ func TestBackspace(t *testing.T) {
 func TestLineFeed(t *testing.T) {
 	v := fromLines("AA\n..")
 	v.Cursor.X = 1
-	controlCommand(linefeed).display(v)
-	runeCommand('b').display(v)
+	assert.Nil(t, v.Process(controlCommand(linefeed)))
+	assert.Nil(t, v.Process(runeCommand('b')))
 	assert.Equal(t, fromLines("AA\nb.").Content, v.Content)
 }
 
 func TestCarriageReturn(t *testing.T) {
 	v := fromLines("AA\n..")
 	v.Cursor.X = 1
-	controlCommand(carriageReturn).display(v)
-	runeCommand('b').display(v)
+	assert.Nil(t, v.Process(controlCommand(carriageReturn)))
+	assert.Nil(t, v.Process(runeCommand('b')))
 	assert.Equal(t, fromLines("bA\n..").Content, v.Content)
 }
 
@@ -176,10 +173,10 @@ func TestAttributes(t *testing.T) {
 	v := fromLines("....")
 	s := strings.NewReader(
 		esc("[2ma") + esc("[5;22;31mb") + esc("[0mc") + esc("[4;46md"))
-	cmd, err := readOneCommand(s)
+	cmd, err := Decode(s)
 	for err == nil {
-		cmd.display(v)
-		cmd, err = readOneCommand(s)
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])

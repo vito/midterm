@@ -7,16 +7,10 @@ import (
 	"unicode"
 )
 
-// scanner is a type that takes a stream of bytes destined for a terminal
-// and turns it into commands that update our terminal screen reader.
-type scanner struct {
-	io.RuneScanner
-}
-
-// next advances to the next command in the stream. It will return the command
-// if it finds one. If it receives any error, that error will be returned instead.
-// It is also an error if the input stream contains non-UTF8 data.
-func readOneCommand(s io.RuneScanner) (command, error) {
+// Decode decodes one command from s. This Command can then be passed to the VT100
+// to modify it. You should not share s with any other reader, because it could leave
+// the stream in an invalid state.
+func Decode(s io.RuneScanner) (Command, error) {
 	r, size, err := s.ReadRune()
 	if err != nil {
 		return nil, err
@@ -52,7 +46,7 @@ var (
 
 // scanEscapeCommand scans to the end of the current escape sequence. The scanner
 // must be positioned at an escape rune (esc or the unicode CSI).
-func scanEscapeCommand(s io.RuneScanner) (command, error) {
+func scanEscapeCommand(s io.RuneScanner) (Command, error) {
 	csi := false
 	esc, _, err := s.ReadRune()
 	if err != nil {

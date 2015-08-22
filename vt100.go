@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"image/color"
-	"io"
 	"sort"
 	"strings"
 )
@@ -161,22 +160,15 @@ func NewVT100(y, x int) *VT100 {
 	return v
 }
 
-// ReadOnce reads a single ansi terminal command from the provided RuneScanner.
-// These commands could include C0 codes, escape sequences, or printable runes.
-// You should not share this scanner with any other reader, as it may put the
-// terminal into a bad state.
+// Process handles a single ANSI terminal command, updating the terminal
+// appropriately.
 //
 // One special kind of error that this can return is an UnsupportedError. It's
 // probably best to check for these and skip, because they are likely recoverable.
 // Support errors are exported as expvars, so it is possibly not necessary to log
 // them.
-func (v *VT100) ReadOnce(s io.RuneScanner) error {
-	cmd, err := readOneCommand(s)
-	if err != nil {
-		return err
-	}
-	cmd.display(v)
-	return nil
+func (v *VT100) Process(c Command) error {
+	return c.display(v)
 }
 
 // HTML renders v as an HTML fragment. One idea for how to use this is to debug
