@@ -28,3 +28,27 @@ Not currently supported (and no plans to support):
 * Other cooked mode features
 
 The API is not stable! This is a v0 package.
+
+## Demo
+
+Try running the demo! Install nethack:
+
+    sudo apt-get install nethack
+
+Get this code:
+
+    go get github.com/jaguilar/vt100
+    cd $GOPATH/src/githib.com/jaguilar/vt100
+
+Run this code:
+
+    go run demo/demo.go -port=8080 2>/tmp/error.txt
+
+Play some nethack and check out the resulting VT100 terminal status:
+
+    # From another terminal . . .
+    xdg-open http://localhost:8080/debug/vt100
+
+The demo probably assumes Linux (it uses pty-related syscalls). I'll happily
+accept pull requests that replicate the pty-spawning functions on OSX and 
+Windows.
