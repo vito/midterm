@@ -1,10 +1,12 @@
-package vt100
+package vt100_test
 
 import (
 	"io"
 	"strings"
 	"testing"
 
+	. "github.com/jaguilar/vt100"
+	"github.com/jaguilar/vt100/vttest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,26 +31,41 @@ func cmd(s string) Command {
 	return cmd
 }
 
+func cmds(s string) []Command {
+	var c []Command
+	r := strings.NewReader(s)
+	for {
+		x, err := Decode(r)
+		if err == io.EOF {
+			return c
+		}
+		if err != nil {
+			panic(err)
+		}
+		c = append(c, x)
+	}
+}
+
 func TestPutRune(t *testing.T) {
-	v := fromLines("abc\ndef\nghi")
+	v := vttest.FromLines("abc\ndef\nghi")
 	v.Cursor.Y = 1
 	v.Cursor.X = 1
 
-	assert.Nil(t, v.Process(runeCommand('z')))
+	assert.Nil(t, v.Process(cmd("z")))
 	assert.Equal(t, splitLines("abc\ndzf\nghi"), v.Content)
 	assert.Equal(t, 2, v.Cursor.X)
 	assert.Equal(t, 1, v.Cursor.Y)
 }
 
 func TestMoveCursor(t *testing.T) {
-	v := fromLines("abc\ndef\nghi")
+	v := vttest.FromLines("abc\ndef\nghi")
 	assert.Nil(t, v.Process(cmd(esc("[3;1H"))))
 	assert.Equal(t, 2, v.Cursor.Y)
 	assert.Equal(t, 0, v.Cursor.X)
 }
 
 func TestCursorDirections(t *testing.T) {
-	v := fromLines("abc\ndef\nghi")
+	v := vttest.FromLines("abc\ndef\nghi")
 
 	moves := strings.Join([]string{
 		esc("[2B"), // down down
@@ -64,7 +81,7 @@ func TestCursorDirections(t *testing.T) {
 		{Y: 1, X: 2},
 		{Y: 1, X: 1},
 	}
-	got := make([]Cursor, 0)
+	var got []Cursor
 
 	cmd, err := Decode(s)
 	for err == nil {
@@ -84,38 +101,38 @@ func TestErase(t *testing.T) {
 		command Command
 		want    *VT100
 	}{
-		{cmd(esc("[K")), fromLinesAndFormats("abcd\nef  \nijkl", [][]Format{
+		{cmd(esc("[K")), vttest.FromLinesAndFormats("abcd\nef  \nijkl", [][]Format{
 			{c, c, c, c},
 			{c, c, d, d},
 			{c, c, c, c},
 		})},
-		{cmd(esc("[1K")), fromLinesAndFormats("abcd\n   h\nijkl", [][]Format{
+		{cmd(esc("[1K")), vttest.FromLinesAndFormats("abcd\n   h\nijkl", [][]Format{
 			{c, c, c, c},
 			{d, d, d, c},
 			{c, c, c, c},
 		})},
-		{cmd(esc("[2K")), fromLinesAndFormats("abcd\n    \nijkl", [][]Format{
+		{cmd(esc("[2K")), vttest.FromLinesAndFormats("abcd\n    \nijkl", [][]Format{
 			{c, c, c, c},
 			{d, d, d, d},
 			{c, c, c, c},
 		})},
-		{cmd(esc("[J")), fromLinesAndFormats("abcd\n    \n    ", [][]Format{
+		{cmd(esc("[J")), vttest.FromLinesAndFormats("abcd\n    \n    ", [][]Format{
 			{c, c, c, c},
 			{d, d, d, d},
 			{d, d, d, d},
 		})},
-		{cmd(esc("[1J")), fromLinesAndFormats("    \n    \nijkl", [][]Format{
+		{cmd(esc("[1J")), vttest.FromLinesAndFormats("    \n    \nijkl", [][]Format{
 			{d, d, d, d},
 			{d, d, d, d},
 			{c, c, c, c},
 		})},
-		{cmd(esc("[2J")), fromLinesAndFormats("    \n    \n    ", [][]Format{
+		{cmd(esc("[2J")), vttest.FromLinesAndFormats("    \n    \n    ", [][]Format{
 			{d, d, d, d},
 			{d, d, d, d},
 			{d, d, d, d},
 		})},
 	} {
-		v := fromLinesAndFormats(
+		v := vttest.FromLinesAndFormats(
 			"abcd\nefgh\nijkl", [][]Format{
 				{c, c, c, c},
 				{c, c, c, c},
@@ -133,44 +150,55 @@ func TestErase(t *testing.T) {
 	}
 }
 
+var (
+	bs = "\u0008" // Use strings to contain these runes so they can be concatenated easily.
+	lf = "\u000a"
+	cr = "\u000d"
+)
+
 func TestBackspace(t *testing.T) {
-	v := fromLines("BA..")
+	v := vttest.FromLines("BA..")
 	v.Cursor.Y, v.Cursor.X = 0, 2
 
-	assert.Nil(t, v.Process(controlCommand(backspace)))
+	backspace := cmd(bs)
+	assert.Nil(t, v.Process(backspace))
 	// Backspace doesn't actually delete text.
-	assert.Equal(t, fromLines("BA..").Content, v.Content)
+	assert.Equal(t, vttest.FromLines("BA..").Content, v.Content)
 	assert.Equal(t, 1, v.Cursor.X)
 
 	v.Cursor.X = 0
-	controlCommand(backspace).display(v)
+	assert.Nil(t, v.Process(backspace))
 	assert.Equal(t, 0, v.Cursor.X)
 
-	v = fromLines("..\n..")
+	v = vttest.FromLines("..\n..")
 	v.Cursor.Y, v.Cursor.X = 1, 0
-	assert.Nil(t, v.Process(controlCommand(backspace)))
+	assert.Nil(t, v.Process(backspace))
 	assert.Equal(t, 0, v.Cursor.Y)
 	assert.Equal(t, 1, v.Cursor.X)
 }
 
 func TestLineFeed(t *testing.T) {
-	v := fromLines("AA\n..")
+	v := vttest.FromLines("AA\n..")
 	v.Cursor.X = 1
-	assert.Nil(t, v.Process(controlCommand(linefeed)))
-	assert.Nil(t, v.Process(runeCommand('b')))
-	assert.Equal(t, fromLines("AA\nb.").Content, v.Content)
+
+	for _, c := range cmds(lf + "b") {
+		assert.Nil(t, v.Process(c))
+	}
+	assert.Equal(t, vttest.FromLines("AA\nb.").Content, v.Content)
 }
 
 func TestCarriageReturn(t *testing.T) {
-	v := fromLines("AA\n..")
+	v := vttest.FromLines("AA\n..")
 	v.Cursor.X = 1
-	assert.Nil(t, v.Process(controlCommand(carriageReturn)))
-	assert.Nil(t, v.Process(runeCommand('b')))
-	assert.Equal(t, fromLines("bA\n..").Content, v.Content)
+
+	for _, c := range cmds(cr + "b") {
+		assert.Nil(t, v.Process(c))
+	}
+	assert.Equal(t, vttest.FromLines("bA\n..").Content, v.Content)
 }
 
 func TestAttributes(t *testing.T) {
-	v := fromLines("....")
+	v := vttest.FromLines("....")
 	s := strings.NewReader(
 		esc("[2ma") + esc("[5;22;31mb") + esc("[0mc") + esc("[4;46md"))
 	cmd, err := Decode(s)
