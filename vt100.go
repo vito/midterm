@@ -233,6 +233,7 @@ func maybeEscapeRune(r rune) string {
 
 // put puts r onto the current cursor's position, then advances the cursor.
 func (v *VT100) put(r rune) {
+	v.scrollIfNeeded()
 	v.Content[v.Cursor.Y][v.Cursor.X] = r
 	v.Format[v.Cursor.Y][v.Cursor.X] = v.Cursor.F
 	v.advance()
@@ -245,9 +246,23 @@ func (v *VT100) advance() {
 		v.Cursor.X = 0
 		v.Cursor.Y++
 	}
+	// if v.Cursor.Y >= v.Height {
+	// 	// TODO(jaguilar): if we implement scroll, this should probably scroll.
+	// 	// v.Cursor.Y = 0
+	// 	v.scroll()
+	// }
+}
+
+func (v *VT100) scrollIfNeeded() {
 	if v.Cursor.Y >= v.Height {
-		// TODO(jaguilar): if we implement scroll, this should probably scroll.
-		v.Cursor.Y = 0
+		fmt.Println("scroll", v.Cursor.Y, v.Height, v.Width)
+		first := v.Content[0]
+		copy(v.Content, v.Content[1:])
+		for i := range first {
+			first[i] = int32(0)
+		}
+		v.Content[v.Height-1] = first
+		v.Cursor.Y = v.Height - 1
 	}
 }
 
@@ -318,6 +333,9 @@ func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
 }
 
 func (v *VT100) clear(y, x int) {
+	if y >= len(v.Content) || x >= len(v.Content[0]) {
+		return
+	}
 	v.Content[y][x] = ' '
 	v.Format[y][x] = Format{}
 }
