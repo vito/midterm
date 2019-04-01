@@ -160,11 +160,56 @@ func NewVT100(y, x int) *VT100 {
 		v.Content[row] = make([]rune, x)
 		v.Format[row] = make([]Format, x)
 
-		for col := 0; col < x; col++ {
-			v.clear(row, col)
-		}
+		// for col := 0; col < x; col++ {
+		// 	v.clear(row, col)
+		// }
 	}
 	return v
+}
+
+func (v *VT100) UsedHeight(dt []byte) int {
+	count := 0
+	for _, l := range v.Content {
+		for _, r := range l {
+			if r != 0 {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
+func (v *VT100) Resize(y, x int) {
+	if y > v.Height {
+		n := y - v.Height
+		for row := 0; row < n; row++ {
+			v.Content[v.Height+row] = make([]rune, v.Width)
+			v.Format[v.Height+row] = make([]Format, v.Width)
+		}
+		v.Height = y
+	} else if y < v.Height {
+		v.Content = v.Content[:y]
+		v.Height = y
+	}
+
+	if x > v.Width {
+		for i := range v.Content {
+			row := make([]rune, x)
+			copy(row, v.Content[i])
+			v.Content[i] = row
+			format := make([]Format, x)
+			copy(format, v.Format[i])
+			v.Format[i] = format
+		}
+		v.Width = x
+	} else if x < v.Width {
+		for i := range v.Content {
+			v.Content[i] = v.Content[i][:x]
+			v.Format[i] = v.Format[i][:x]
+		}
+		v.Width = x
+	}
 }
 
 func (v *VT100) Write(dt []byte) (int, error) {
@@ -279,7 +324,6 @@ func (v *VT100) advance() {
 
 func (v *VT100) scrollIfNeeded() {
 	if v.Cursor.Y >= v.Height {
-		fmt.Println("scroll", v.Cursor.Y, v.Height, v.Width)
 		first := v.Content[0]
 		copy(v.Content, v.Content[1:])
 		for i := range first {
