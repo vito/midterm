@@ -135,6 +135,8 @@ type VT100 struct {
 
 	// savedCursor is the state of the cursor last time save() was called.
 	savedCursor Cursor
+
+	unparsed []byte
 }
 
 // NewVT100 creates a new VT100 object with the specified dimensions. y and x
@@ -163,6 +165,28 @@ func NewVT100(y, x int) *VT100 {
 		}
 	}
 	return v
+}
+
+func (v *VT100) Write(dt []byte) (int, error) {
+	n := len(dt)
+	if len(v.unparsed) > 0 {
+		dt = append(v.unparsed, dt...) // this almost never happens
+		v.unparsed = nil
+	}
+	buf := bytes.NewBuffer(dt)
+	for {
+		if buf.Len() == 0 {
+			return n, nil
+		}
+		cmd, err := Decode(buf)
+		if err != nil {
+			if l := buf.Len(); l > 0 && l < 12 { // on small leftover handle unparsed, otherwise skip
+				v.unparsed = buf.Bytes()
+			}
+			return n, nil
+		}
+		v.Process(cmd) // ignore error
+	}
 }
 
 // Process handles a single ANSI terminal command, updating the terminal
