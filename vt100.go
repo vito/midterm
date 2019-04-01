@@ -52,7 +52,7 @@ func (i Intensity) alpha() uint8 {
 	case Dim:
 		return 85
 	default:
-		panic(fmt.Errorf("unknown intensity: %d", uint8(i)))
+		return 170
 	}
 }
 
