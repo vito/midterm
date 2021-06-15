@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/jaguilar/vt100"
+	"github.com/tonistiigi/vt100"
 )
 
 // Handler is a type that knows how to serve the VT100 as an HTML

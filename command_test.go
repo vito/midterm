@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/jaguilar/vt100"
-	"github.com/jaguilar/vt100/vttest"
+	. "github.com/tonistiigi/vt100"
+	"github.com/tonistiigi/vt100/vttest"
 	"github.com/stretchr/testify/assert"
 )
 

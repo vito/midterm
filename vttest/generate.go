@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/jaguilar/vt100"
+	"github.com/tonistiigi/vt100"
 )
 
 // FromLines generates a VT100 from content text.

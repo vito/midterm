@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/jaguilar/vt100.svg?branch=master)](https://travis-ci.org/jaguilar/vt100)
 
-[![GoDoc](https://godoc.org/github.com/jaguilar/vt100?status.svg)](https://godoc.org/github.com/jaguilar/vt100)
+[![GoDoc](https://godoc.org/github.com/tonistiigi/vt100?status.svg)](https://godoc.org/github.com/tonistiigi/vt100)
 
 This is a vt100 screen reader. It seems to do a pretty
 decent job of parsing the nethack input stream, which
@@ -37,7 +37,7 @@ Try running the demo! Install nethack:
 
 Get this code:
 
-    go get github.com/jaguilar/vt100
+    go get github.com/tonistiigi/vt100
     cd $GOPATH/src/githib.com/jaguilar/vt100
 
 Run this code:

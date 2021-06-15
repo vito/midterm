@@ -15,8 +15,8 @@ import (
 
 	"github.com/facebookgo/httpdown"
 	"github.com/golang/glog"
-	"github.com/jaguilar/vt100"
-	vtexport "github.com/jaguilar/vt100/export"
+	"github.com/tonistiigi/vt100"
+	vtexport "github.com/tonistiigi/vt100/export"
 	"github.com/kr/pty"
 	"github.com/pkg/term/termios"
 )
