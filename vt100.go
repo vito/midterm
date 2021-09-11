@@ -335,6 +335,14 @@ func (v *VT100) scrollIfNeeded() {
 			first[i] = ' '
 		}
 		v.Content[v.Height-1] = first
+
+		firstF := v.Format[0]
+		copy(v.Format, v.Format[1:])
+		for i := range first {
+			firstF[i] = Format{}
+		}
+		v.Format[v.Height-1] = firstF
+
 		v.Cursor.Y = v.Height - 1
 	}
 }
