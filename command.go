@@ -140,9 +140,15 @@ func updateAttributes(v *VT100, args []int) error {
 			f.Conceal = false
 		case 30, 31, 32, 33, 34, 35, 36, 37, 39:
 			f.Fg = codeColors[x-30]
+		case 90, 91, 92, 93, 94, 95, 96, 97:
+			f.Fg = codeColors[x-90]
+			f.Intensity = Bright
 		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
 			f.Bg = codeColors[x-40]
 			// 38 and 48 not supported. Maybe someday.
+		case 100, 101, 102, 103, 104, 105, 106, 107:
+			f.Bg = codeColors[x-100]
+			f.Intensity = Bright
 		default:
 			unsupported = append(unsupported, x)
 		}

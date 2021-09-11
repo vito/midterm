@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	. "github.com/tonistiigi/vt100"
 	"github.com/tonistiigi/vt100/vttest"
-	"github.com/stretchr/testify/assert"
 )
 
 func splitLines(s string) [][]rune {
@@ -210,5 +210,39 @@ func TestAttributes(t *testing.T) {
 	assert.Equal(t, []rune("abcd"), v.Content[0])
 	assert.Equal(t, []Format{
 		{Intensity: Dim}, {Blink: true, Fg: Red}, {}, {Underscore: true, Bg: Cyan},
+	}, v.Format[0])
+}
+
+func TestBrightFg(t *testing.T) {
+	v := vttest.FromLines("...\n...")
+	s := strings.NewReader(
+		esc("[90ma") + esc("[91mb") + esc("[97mc"),
+	)
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, []rune("abc"), v.Content[0])
+	assert.Equal(t, []Format{
+		{Fg: Black, Intensity: Bright}, {Fg: Red, Intensity: Bright}, {Fg: White, Intensity: Bright},
+	}, v.Format[0])
+}
+
+func TestBrightBg(t *testing.T) {
+	v := vttest.FromLines("...\n...")
+	s := strings.NewReader(
+		esc("[100ma") + esc("[101mb") + esc("[107mc"),
+	)
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, []rune("abc"), v.Content[0])
+	assert.Equal(t, []Format{
+		{Bg: Black, Intensity: Bright}, {Bg: Red, Intensity: Bright}, {Bg: White, Intensity: Bright},
 	}, v.Format[0])
 }
