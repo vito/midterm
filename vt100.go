@@ -137,6 +137,9 @@ type VT100 struct {
 	savedCursor Cursor
 
 	unparsed []byte
+
+	// maxY is the maximum vertical offset that a character was printed
+	maxY int
 }
 
 // NewVT100 creates a new VT100 object with the specified dimensions. y and x
@@ -168,16 +171,7 @@ func NewVT100(y, x int) *VT100 {
 }
 
 func (v *VT100) UsedHeight() int {
-	count := 0
-	for _, l := range v.Content {
-		for _, r := range l {
-			if r != ' ' {
-				count++
-				break
-			}
-		}
-	}
-	return count
+	return v.maxY + 1
 }
 
 func (v *VT100) Resize(y, x int) {
@@ -308,6 +302,11 @@ func maybeEscapeRune(r rune) string {
 
 // put puts r onto the current cursor's position, then advances the cursor.
 func (v *VT100) put(r rune) {
+	if v.Cursor.Y > v.maxY {
+		// track max character offset for UsedHeight()
+		v.maxY = v.Cursor.Y
+	}
+
 	v.scrollIfNeeded()
 	v.Content[v.Cursor.Y][v.Cursor.X] = r
 	v.Format[v.Cursor.Y][v.Cursor.X] = v.Cursor.F
