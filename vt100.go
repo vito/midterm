@@ -148,7 +148,7 @@ type VT100 struct {
 // Each cell is set to contain a ' ' rune, and all formats are left as the
 // default.
 func NewVT100(y, x int) *VT100 {
-	if y == 0 || x == 0 {
+	if y <= 0 || x <= 0 {
 		panic(fmt.Errorf("invalid dim (%d, %d)", y, x))
 	}
 
