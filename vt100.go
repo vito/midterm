@@ -320,11 +320,6 @@ func (v *VT100) advance() {
 		v.Cursor.X = 0
 		v.Cursor.Y++
 	}
-	// if v.Cursor.Y >= v.Height {
-	// 	// TODO(jaguilar): if we implement scroll, this should probably scroll.
-	// 	// v.Cursor.Y = 0
-	// 	v.scroll()
-	// }
 }
 
 func (v *VT100) scrollIfNeeded() {
