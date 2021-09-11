@@ -1,6 +1,6 @@
 #VT100
 
-[![GoDoc](https://godoc.org/github.com/tonistiigi/vt100?status.svg)](https://godoc.org/github.com/tonistiigi/vt100)
+[![GoDoc](https://godoc.org/github.com/vito/vt100?status.svg)](https://godoc.org/github.com/vito/vt100)
 
 This project was based on [jaguilar/vt100](https://github.com/jaguilar/vt100)
 

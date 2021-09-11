@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	. "github.com/tonistiigi/vt100"
-	"github.com/tonistiigi/vt100/vttest"
+	. "github.com/vito/vt100"
+	"github.com/vito/vt100/vttest"
 )
 
 func splitLines(s string) [][]rune {

@@ -1,4 +1,4 @@
-module github.com/tonistiigi/vt100
+module github.com/vito/vt100
 
 go 1.12
 
