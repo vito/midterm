@@ -285,6 +285,8 @@ func (c controlCommand) display(v *VT100) error {
 	case backspace:
 		v.backspace()
 	case linefeed:
+		// scroll *before* advancing so a trailing linebreak doesn't waste a line
+		v.scrollIfNeeded()
 		v.Cursor.Y++
 		v.Cursor.X = 0
 	case carriageReturn:
