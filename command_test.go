@@ -154,6 +154,8 @@ var (
 	bs = "\u0008" // Use strings to contain these runes so they can be concatenated easily.
 	lf = "\u000a"
 	cr = "\u000d"
+
+	tab = "\t"
 )
 
 func TestBackspace(t *testing.T) {
@@ -185,6 +187,25 @@ func TestLineFeed(t *testing.T) {
 		assert.Nil(t, v.Process(c))
 	}
 	assert.Equal(t, vttest.FromLines("AA\nb.").Content, v.Content)
+}
+
+func TestHorizontalTab(t *testing.T) {
+	v := vttest.FromLines("AA          \n")
+	v.Cursor.X = 2
+
+	for _, c := range cmds(tab + "b" + tab + "c") {
+		assert.Nil(t, v.Process(c))
+	}
+
+	assert.Equal(t, vttest.FromLines("AA  b   c   \n").Content, v.Content)
+
+	v.Cursor.X = 0
+	v.Cursor.Y = 1
+	for _, c := range cmds(tab + "b" + tab + "c") {
+		assert.Nil(t, v.Process(c))
+	}
+
+	assert.Equal(t, vttest.FromLines("AA  b   c   \n    b   c   ").Content, v.Content)
 }
 
 func TestCarriageReturn(t *testing.T) {

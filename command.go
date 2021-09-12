@@ -273,12 +273,14 @@ type controlCommand rune
 
 const (
 	backspace      controlCommand = '\b'
-	_horizontalTab                = '\t'
+	horizontalTab                 = '\t'
 	linefeed                      = '\n'
 	_verticalTab                  = '\v'
 	_formfeed                     = '\f'
 	carriageReturn                = '\r'
 )
+
+const tabWidth = 4
 
 func (c controlCommand) display(v *VT100) error {
 	switch c {
@@ -289,6 +291,12 @@ func (c controlCommand) display(v *VT100) error {
 		v.scrollIfNeeded()
 		v.Cursor.Y++
 		v.Cursor.X = 0
+	case horizontalTab:
+		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
+		for x := v.Cursor.X; x < target; x++ {
+			v.clear(v.Cursor.Y, x)
+		}
+		v.Cursor.X = target
 	case carriageReturn:
 		v.Cursor.X = 0
 	}
