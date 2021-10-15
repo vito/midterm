@@ -174,9 +174,9 @@ func (v *VT100) UsedHeight() int {
 	return v.maxY + 1
 }
 
-func (v *VT100) Resize(y, x int) {
-	if y > v.Height {
-		n := y - v.Height
+func (v *VT100) Resize(h, w int) {
+	if h > v.Height {
+		n := h - v.Height
 		for row := 0; row < n; row++ {
 			v.Content = append(v.Content, make([]rune, v.Width))
 			v.Format = append(v.Format, make([]Format, v.Width))
@@ -184,31 +184,35 @@ func (v *VT100) Resize(y, x int) {
 				v.clear(v.Height+row, col)
 			}
 		}
-		v.Height = y
-	} else if y < v.Height {
-		v.Content = v.Content[:y]
-		v.Height = y
+		v.Height = h
+	} else if h < v.Height {
+		v.Content = v.Content[:h]
+		v.Height = h
 	}
 
-	if x > v.Width {
+	if h < v.maxY {
+		v.maxY = h - 1
+	}
+
+	if w > v.Width {
 		for i := range v.Content {
-			row := make([]rune, x)
+			row := make([]rune, w)
 			copy(row, v.Content[i])
 			v.Content[i] = row
-			format := make([]Format, x)
+			format := make([]Format, w)
 			copy(format, v.Format[i])
 			v.Format[i] = format
-			for j := v.Width; j < x; j++ {
+			for j := v.Width; j < w; j++ {
 				v.clear(i, j)
 			}
 		}
-		v.Width = x
-	} else if x < v.Width {
+		v.Width = w
+	} else if w < v.Width {
 		for i := range v.Content {
-			v.Content[i] = v.Content[i][:x]
-			v.Format[i] = v.Format[i][:x]
+			v.Content[i] = v.Content[i][:w]
+			v.Format[i] = v.Format[i][:w]
 		}
-		v.Width = x
+		v.Width = w
 	}
 }
 
