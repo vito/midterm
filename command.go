@@ -2,7 +2,6 @@ package vt100
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"image/color"
 	"regexp"
@@ -21,12 +20,7 @@ type UnsupportedError struct {
 	error
 }
 
-var (
-	supportErrors = expvar.NewMap("vt100-unsupported-operations")
-)
-
 func supportError(e error) error {
-	supportErrors.Add(e.Error(), 1)
 	return UnsupportedError{e}
 }
 
