@@ -111,7 +111,7 @@ func updateAttributes(v *VT100, args []int) error {
 		case 0:
 			*f = Format{}
 		case 1:
-			f.Intensity = Bright
+			f.Intensity = Bold
 		case 2:
 			f.Intensity = Dim
 		case 22:
@@ -136,13 +136,13 @@ func updateAttributes(v *VT100, args []int) error {
 			f.Fg = codeColors[x-30]
 		case 90, 91, 92, 93, 94, 95, 96, 97:
 			f.Fg = codeColors[x-90]
-			f.Intensity = Bright
+			f.FgBright = true
 		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
 			f.Bg = codeColors[x-40]
 			// 38 and 48 not supported. Maybe someday.
 		case 100, 101, 102, 103, 104, 105, 106, 107:
 			f.Bg = codeColors[x-100]
-			f.Intensity = Bright
+			f.BgBright = true
 		default:
 			unsupported = append(unsupported, x)
 		}

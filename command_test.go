@@ -95,7 +95,7 @@ func TestCursorDirections(t *testing.T) {
 }
 
 func TestErase(t *testing.T) {
-	c := Format{Fg: Yellow, Intensity: Bright}
+	c := Format{Fg: Yellow, Intensity: Bold}
 	var d Format
 	for _, tc := range []struct {
 		command Command
@@ -234,6 +234,21 @@ func TestAttributes(t *testing.T) {
 	}, v.Format[0])
 }
 
+func TestBold(t *testing.T) {
+	v := vttest.FromLines("...")
+	s := strings.NewReader(esc("[1ma") + esc("[31mb") + esc("[91mc"))
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, []rune("abc"), v.Content[0])
+	assert.Equal(t, []Format{
+		{Intensity: Bold}, {Fg: Red, Intensity: Bold}, {Fg: Red, FgBright: true, Intensity: Bold},
+	}, v.Format[0])
+}
+
 func TestBrightFg(t *testing.T) {
 	v := vttest.FromLines("...\n...")
 	s := strings.NewReader(
@@ -247,7 +262,7 @@ func TestBrightFg(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Fg: Black, Intensity: Bright}, {Fg: Red, Intensity: Bright}, {Fg: White, Intensity: Bright},
+		{Fg: Black, FgBright: true}, {Fg: Red, FgBright: true}, {Fg: White, FgBright: true},
 	}, v.Format[0])
 }
 
@@ -264,6 +279,6 @@ func TestBrightBg(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Bg: Black, Intensity: Bright}, {Bg: Red, Intensity: Bright}, {Bg: White, Intensity: Bright},
+		{Bg: Black, BgBright: true}, {Bg: Red, BgBright: true}, {Bg: White, BgBright: true},
 	}, v.Format[0])
 }

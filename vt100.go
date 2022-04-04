@@ -23,7 +23,7 @@ type Intensity int
 
 const (
 	Normal Intensity = 0
-	Bright           = 1
+	Bold             = 1
 	Dim              = 2
 	// TODO(jaguilar): Should this be in a subpackage, since the names are pretty collide-y?
 )
@@ -45,7 +45,7 @@ var (
 
 func (i Intensity) alpha() uint8 {
 	switch i {
-	case Bright:
+	case Bold:
 		return 255
 	case Normal:
 		return 170
@@ -59,9 +59,11 @@ func (i Intensity) alpha() uint8 {
 // Format represents the display format of text on a terminal.
 type Format struct {
 	// Fg is the foreground color.
-	Fg color.RGBA
+	Fg       color.RGBA
+	FgBright bool
 	// Bg is the background color.
-	Bg color.RGBA
+	Bg       color.RGBA
+	BgBright bool
 	// Intensity is the text intensity (bright, normal, dim).
 	Intensity Intensity
 	// Various text properties.
