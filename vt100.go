@@ -17,6 +17,7 @@ import (
 	"image/color"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type Intensity int
@@ -142,6 +143,9 @@ type VT100 struct {
 
 	// maxY is the maximum vertical offset that a character was printed
 	maxY int
+
+	// for synchronizing e.g. writes and async resizing
+	mut sync.Mutex
 }
 
 // NewVT100 creates a new VT100 object with the specified dimensions. y and x
@@ -169,14 +173,20 @@ func NewVT100(y, x int) *VT100 {
 			v.clear(row, col)
 		}
 	}
+
 	return v
 }
 
 func (v *VT100) UsedHeight() int {
+	v.mut.Lock()
+	defer v.mut.Unlock()
 	return v.maxY + 1
 }
 
 func (v *VT100) Resize(h, w int) {
+	v.mut.Lock()
+	defer v.mut.Unlock()
+
 	if h > v.Height {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
@@ -219,6 +229,9 @@ func (v *VT100) Resize(h, w int) {
 }
 
 func (v *VT100) Write(dt []byte) (int, error) {
+	v.mut.Lock()
+	defer v.mut.Unlock()
+
 	n := len(dt)
 	if len(v.unparsed) > 0 {
 		dt = append(v.unparsed, dt...) // this almost never happens
@@ -236,7 +249,7 @@ func (v *VT100) Write(dt []byte) (int, error) {
 			}
 			return n, nil
 		}
-		v.Process(cmd) // ignore error
+		_ = cmd.display(v) // ignore error
 	}
 }
 
@@ -249,12 +262,18 @@ func (v *VT100) Write(dt []byte) (int, error) {
 // them. If you want to check what's failed, start a debug http server and examine
 // the vt100-unsupported-commands field in /debug/vars.
 func (v *VT100) Process(c Command) error {
+	v.mut.Lock()
+	defer v.mut.Unlock()
+
 	return c.display(v)
 }
 
 // HTML renders v as an HTML fragment. One idea for how to use this is to debug
 // the current state of the screen reader.
 func (v *VT100) HTML() string {
+	v.mut.Lock()
+	defer v.mut.Unlock()
+
 	var buf bytes.Buffer
 	buf.WriteString(`<pre style="color:white;background-color:black;">`)
 
