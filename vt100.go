@@ -227,6 +227,14 @@ func (v *VT100) Resize(h, w int) {
 		}
 		v.Width = w
 	}
+
+	if v.Cursor.X >= v.Width {
+		v.Cursor.X = v.Width - 1
+	}
+
+	if v.Cursor.Y >= v.Height {
+		v.Cursor.Y = v.Height - 1
+	}
 }
 
 func (v *VT100) Write(dt []byte) (int, error) {
