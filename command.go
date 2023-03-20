@@ -120,6 +120,8 @@ func updateAttributes(v *VT100, args []int) error {
 			f.Conceal = true
 		case 28:
 			f.Conceal = false
+		case 10:
+			// primary font
 		case 30, 31, 32, 33, 34, 35, 36, 37, 39:
 			f.Fg = termenv.ANSIColor(x - 30)
 		case 90, 91, 92, 93, 94, 95, 96, 97:
