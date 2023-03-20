@@ -92,7 +92,11 @@ func updateAttributes(v *VT100, args []int) error {
 	f := &v.Cursor.F
 
 	var unsupported []int
-	for i, x := range args {
+	i := 0
+	for i < len(args) {
+		x := args[i]
+		i++
+
 		switch x {
 		case 0:
 			*f = Format{}
@@ -120,15 +124,12 @@ func updateAttributes(v *VT100, args []int) error {
 			f.Conceal = true
 		case 28:
 			f.Conceal = false
-		case 10:
-			// primary font
 		case 30, 31, 32, 33, 34, 35, 36, 37, 39:
 			f.Fg = termenv.ANSIColor(x - 30)
 		case 90, 91, 92, 93, 94, 95, 96, 97:
 			f.Fg = termenv.ANSIColor(x - 90 + 8)
 		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
 			f.Bg = termenv.ANSIColor(x - 40)
-			// 38 and 48 not supported. Maybe someday.
 		case 100, 101, 102, 103, 104, 105, 106, 107:
 			f.Bg = termenv.ANSIColor(x - 100 + 8)
 		case 38, 48: // 256-color foreground/background
@@ -138,7 +139,8 @@ func updateAttributes(v *VT100, args []int) error {
 				return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
 			}
 
-			type_ := args[i+1]
+			type_ := args[i]
+			i++
 
 			var color termenv.Color
 			switch type_ {
@@ -147,7 +149,8 @@ func updateAttributes(v *VT100, args []int) error {
 					return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
 				}
 
-				num := args[i+2]
+				num := args[i]
+				i++
 				switch {
 				case num < 16:
 					color = termenv.ANSIColor(num)
@@ -159,7 +162,13 @@ func updateAttributes(v *VT100, args []int) error {
 					return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
 				}
 
-				r, g, b := args[i+2], args[i+3], args[i+4]
+				r := args[i]
+				i++
+				g := args[i]
+				i++
+				b := args[i]
+				i++
+
 				color = termenv.RGBColor(fmt.Sprintf("#%02x%02x%02x", r, g, b))
 			}
 
