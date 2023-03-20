@@ -124,12 +124,16 @@ func updateAttributes(v *VT100, args []int) error {
 			f.Conceal = true
 		case 28:
 			f.Conceal = false
-		case 30, 31, 32, 33, 34, 35, 36, 37, 39:
+		case 30, 31, 32, 33, 34, 35, 36, 37:
 			f.Fg = termenv.ANSIColor(x - 30)
+		case 39:
+			f.Fg = nil
 		case 90, 91, 92, 93, 94, 95, 96, 97:
 			f.Fg = termenv.ANSIColor(x - 90 + 8)
-		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
+		case 40, 41, 42, 43, 44, 45, 46, 47:
 			f.Bg = termenv.ANSIColor(x - 40)
+		case 49:
+			f.Bg = nil
 		case 100, 101, 102, 103, 104, 105, 106, 107:
 			f.Bg = termenv.ANSIColor(x - 100 + 8)
 		case 38, 48: // 256-color foreground/background
