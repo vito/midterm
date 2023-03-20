@@ -230,7 +230,7 @@ func TestAttributes(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Intensity: Dim}, {Blink: true, Fg: Red}, {}, {Underscore: true, Bg: Cyan},
+		{Intensity: Faint}, {Blink: true, Fg: Red}, {}, {Underscore: true, Bg: Cyan},
 	}, v.Format[0])
 }
 

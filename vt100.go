@@ -14,10 +14,12 @@ package vt100
 import (
 	"bytes"
 	"fmt"
-	"image/color"
+	"io"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/muesli/termenv"
 )
 
 type Intensity int
@@ -25,23 +27,8 @@ type Intensity int
 const (
 	Normal Intensity = 0
 	Bold             = 1
-	Dim              = 2
+	Faint            = 2
 	// TODO(jaguilar): Should this be in a subpackage, since the names are pretty collide-y?
-)
-
-var (
-	// Technically RGBAs are supposed to be premultiplied. But CSS doesn't expect them
-	// that way, so we won't do it in this file.
-	DefaultColor = color.RGBA{0, 0, 0, 0}
-	// Our black has 255 alpha, so it will compare negatively with DefaultColor.
-	Black   = color.RGBA{0, 0, 0, 255}
-	Red     = color.RGBA{255, 0, 0, 255}
-	Green   = color.RGBA{0, 255, 0, 255}
-	Yellow  = color.RGBA{255, 255, 0, 255}
-	Blue    = color.RGBA{0, 0, 255, 255}
-	Magenta = color.RGBA{255, 0, 255, 255}
-	Cyan    = color.RGBA{0, 255, 255, 255}
-	White   = color.RGBA{255, 255, 255, 255}
 )
 
 func (i Intensity) alpha() uint8 {
@@ -50,7 +37,7 @@ func (i Intensity) alpha() uint8 {
 		return 255
 	case Normal:
 		return 170
-	case Dim:
+	case Faint:
 		return 85
 	default:
 		return 170
@@ -60,40 +47,36 @@ func (i Intensity) alpha() uint8 {
 // Format represents the display format of text on a terminal.
 type Format struct {
 	// Fg is the foreground color.
-	Fg       color.RGBA
-	FgBright bool
+	Fg termenv.Color
 	// Bg is the background color.
-	Bg       color.RGBA
-	BgBright bool
+	Bg termenv.Color
 	// Intensity is the text intensity (bright, normal, dim).
 	Intensity Intensity
 	// Various text properties.
-	Underscore, Conceal, Negative, Blink, Inverse bool
+	Italic, Underline, Blink, Reverse, Conceal, CrossOut, Overline bool
 }
 
-func toCss(c color.RGBA) string {
-	return fmt.Sprintf("rgba(%d, %d, %d, %f)", c.R, c.G, c.B, float32(c.A)/255)
+func toCss(c termenv.Color) string {
+	return termenv.ConvertToRGB(c).Hex()
 }
 
 func (f Format) css() string {
 	parts := make([]string, 0)
 	fg, bg := f.Fg, f.Bg
-	if f.Inverse {
+	if f.Reverse {
 		bg, fg = fg, bg
 	}
 
-	if f.Intensity != Normal {
-		// Intensity only applies to the text -- i.e., the foreground.
-		fg.A = f.Intensity.alpha()
+	parts = append(parts, "color:"+toCss(fg))
+	parts = append(parts, "background-color:"+toCss(bg))
+	switch f.Intensity {
+	case Bold:
+		parts = append(parts, "font-weight:bold")
+	case Normal:
+	case Faint:
+		parts = append(parts, "opacity:0.33")
 	}
-
-	if fg != DefaultColor {
-		parts = append(parts, "color:"+toCss(fg))
-	}
-	if bg != DefaultColor {
-		parts = append(parts, "background-color:"+toCss(bg))
-	}
-	if f.Underscore {
+	if f.Underline {
 		parts = append(parts, "text-decoration:underline")
 	}
 	if f.Conceal {

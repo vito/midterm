@@ -3,10 +3,11 @@ package vt100
 import (
 	"errors"
 	"fmt"
-	"image/color"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/muesli/termenv"
 )
 
 // UnsupportedError indicates that we parsed an operation that this
@@ -86,63 +87,85 @@ func unsave(v *VT100, _ []int) error {
 	return nil
 }
 
-var (
-	codeColors = []color.RGBA{
-		Black,
-		Red,
-		Green,
-		Yellow,
-		Blue,
-		Magenta,
-		Cyan,
-		White,
-		{}, // Not used.
-		DefaultColor,
-	}
-)
-
 // A command to update the attributes of the cursor based on the arg list.
 func updateAttributes(v *VT100, args []int) error {
 	f := &v.Cursor.F
 
 	var unsupported []int
-	for _, x := range args {
+	for i, x := range args {
 		switch x {
 		case 0:
 			*f = Format{}
 		case 1:
 			f.Intensity = Bold
 		case 2:
-			f.Intensity = Dim
+			f.Intensity = Faint
+		case 3:
+			f.Italic = true
 		case 22:
 			f.Intensity = Normal
 		case 4:
-			f.Underscore = true
+			f.Underline = true
 		case 24:
-			f.Underscore = false
+			f.Underline = false
 		case 5, 6:
 			f.Blink = true // We don't distinguish between blink speeds.
 		case 25:
 			f.Blink = false
 		case 7:
-			f.Inverse = true
+			f.Reverse = true
 		case 27:
-			f.Inverse = false
+			f.Reverse = false
 		case 8:
 			f.Conceal = true
 		case 28:
 			f.Conceal = false
 		case 30, 31, 32, 33, 34, 35, 36, 37, 39:
-			f.Fg = codeColors[x-30]
+			f.Fg = termenv.ANSIColor(x - 30)
 		case 90, 91, 92, 93, 94, 95, 96, 97:
-			f.Fg = codeColors[x-90]
-			f.FgBright = true
+			f.Fg = termenv.ANSIColor(x - 90 + 8)
 		case 40, 41, 42, 43, 44, 45, 46, 47, 49:
-			f.Bg = codeColors[x-40]
+			f.Bg = termenv.ANSIColor(x - 40)
 			// 38 and 48 not supported. Maybe someday.
 		case 100, 101, 102, 103, 104, 105, 106, 107:
-			f.Bg = codeColors[x-100]
-			f.BgBright = true
+			f.Bg = termenv.ANSIColor(x - 100 + 8)
+		case 38, 48: // 256-color foreground/background
+			bg := x == 48
+
+			if len(args) < 2 {
+				return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
+			}
+
+			type_ := args[i+1]
+
+			var color termenv.Color
+			switch type_ {
+			case 5: // 256-color
+				if len(args) < 3 {
+					return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
+				}
+
+				num := args[i+2]
+				switch {
+				case num < 16:
+					color = termenv.ANSIColor(num)
+				default:
+					color = termenv.ANSI256Color(num)
+				}
+			case 2: // 24-bit
+				if len(args) < 5 {
+					return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
+				}
+
+				r, g, b := args[i+2], args[i+3], args[i+4]
+				color = termenv.RGBColor(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+			}
+
+			if bg {
+				f.Bg = color
+			} else {
+				f.Fg = color
+			}
 		default:
 			unsupported = append(unsupported, x)
 		}
