@@ -136,6 +136,14 @@ type VT100 struct {
 	// Cursor is the current state of the cursor.
 	Cursor Cursor
 
+	// AutoResize indicates whether the terminal should automatically resize
+	// when the content exceeds its maximum height.
+	AutoResize bool
+
+	// DebugLogs is a location to print ANSI parse errors and other debugging
+	// information.
+	DebugLogs io.Writer
+
 	// savedCursor is the state of the cursor last time save() was called.
 	savedCursor Cursor
 
@@ -186,7 +194,10 @@ func (v *VT100) UsedHeight() int {
 func (v *VT100) Resize(h, w int) {
 	v.mut.Lock()
 	defer v.mut.Unlock()
+	v.resize(h, w)
+}
 
+func (v *VT100) resize(h, w int) {
 	if h > v.Height {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
@@ -254,7 +265,12 @@ func (v *VT100) Write(dt []byte) (int, error) {
 			}
 			return n, nil
 		}
-		_ = cmd.display(v) // ignore error
+
+		if err := cmd.display(v); err != nil {
+			if v.DebugLogs != nil {
+				fmt.Fprintln(v.DebugLogs, err)
+			}
+		}
 	}
 }
 
@@ -337,7 +353,7 @@ func (v *VT100) put(r rune) {
 		v.maxY = v.Cursor.Y
 	}
 
-	v.scrollIfNeeded()
+	v.scrollOrResizeIfNeeded()
 	v.Content[v.Cursor.Y][v.Cursor.X] = r
 	v.Format[v.Cursor.Y][v.Cursor.X] = v.Cursor.F
 	v.advance()
@@ -352,24 +368,32 @@ func (v *VT100) advance() {
 	}
 }
 
-func (v *VT100) scrollIfNeeded() {
+func (v *VT100) scrollOrResizeIfNeeded() {
 	if v.Cursor.Y >= v.Height {
-		first := v.Content[0]
-		copy(v.Content, v.Content[1:])
-		for i := range first {
-			first[i] = ' '
+		if v.AutoResize {
+			v.resize(v.Cursor.Y+1, v.Width)
+		} else {
+			v.scrollOne()
 		}
-		v.Content[v.Height-1] = first
-
-		firstF := v.Format[0]
-		copy(v.Format, v.Format[1:])
-		for i := range first {
-			firstF[i] = Format{}
-		}
-		v.Format[v.Height-1] = firstF
-
-		v.Cursor.Y = v.Height - 1
 	}
+}
+
+func (v *VT100) scrollOne() {
+	first := v.Content[0]
+	copy(v.Content, v.Content[1:])
+	for i := range first {
+		first[i] = ' '
+	}
+	v.Content[v.Height-1] = first
+
+	firstF := v.Format[0]
+	copy(v.Format, v.Format[1:])
+	for i := range first {
+		firstF[i] = Format{}
+	}
+	v.Format[v.Height-1] = firstF
+
+	v.Cursor.Y = v.Height - 1
 }
 
 // home moves the cursor to the coordinates y x. If y x are out of bounds, v.Err
