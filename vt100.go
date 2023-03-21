@@ -46,6 +46,9 @@ func (i Intensity) alpha() uint8 {
 
 // Format represents the display format of text on a terminal.
 type Format struct {
+	// Reset inidcates that the format should be reset prior to applying any of
+	// the other fields.
+	Reset bool
 	// Fg is the foreground color.
 	Fg termenv.Color
 	// Bg is the background color.

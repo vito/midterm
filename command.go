@@ -99,7 +99,7 @@ func updateAttributes(v *VT100, args []int) error {
 
 		switch x {
 		case 0:
-			*f = Format{}
+			*f = Format{Reset: true}
 		case 1:
 			f.Intensity = Bold
 		case 2:
