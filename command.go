@@ -69,9 +69,10 @@ var (
 		'B': relativeMove(1, 0),
 		'C': relativeMove(0, 1),
 		'D': relativeMove(0, -1),
-		'K': eraseColumns,
-		'J': eraseLines,
+		'G': absoluteMove,
 		'H': home,
+		'J': eraseLines,
+		'K': eraseColumns,
 		'f': home,
 		'm': updateAttributes,
 	}
@@ -202,6 +203,16 @@ func relativeMove(y, x int) func(*VT100, []int) error {
 		// reuse its sanitization scheme, so we'll just modify our args by that amount.
 		return home(v, []int{v.Cursor.Y + y*c + 1, v.Cursor.X + x*c + 1})
 	}
+}
+
+func absoluteMove(v *VT100, args []int) error {
+	x := 1
+	if len(args) >= 1 {
+		x = args[0]
+	}
+
+	// NB: home is 1-indexed, hence the +1.
+	return home(v, []int{v.Cursor.Y + 1, x})
 }
 
 func eraseColumns(v *VT100, args []int) error {
