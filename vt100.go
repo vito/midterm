@@ -157,6 +157,9 @@ func NewVT100(y, x int) *VT100 {
 		Width:   x,
 		Content: make([][]rune, y),
 		Format:  make([][]Format, y),
+
+		// start at -1 so there's no "used" height until first write
+		maxY: -1,
 	}
 
 	for row := 0; row < y; row++ {
