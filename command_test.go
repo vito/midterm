@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	. "github.com/vito/vt100"
 	"github.com/vito/vt100/vttest"
@@ -95,7 +96,7 @@ func TestCursorDirections(t *testing.T) {
 }
 
 func TestErase(t *testing.T) {
-	c := Format{Fg: Yellow, Intensity: Bold}
+	c := Format{Fg: termenv.ANSIYellow, Intensity: Bold}
 	var d Format
 	for _, tc := range []struct {
 		command Command
@@ -230,7 +231,7 @@ func TestAttributes(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Intensity: Faint}, {Blink: true, Fg: Red}, {}, {Underscore: true, Bg: Cyan},
+		{Intensity: Faint}, {Blink: true, Fg: termenv.ANSIRed}, {Reset: true}, {Reset: true, Underline: true, Bg: termenv.ANSICyan},
 	}, v.Format[0])
 }
 
@@ -245,7 +246,7 @@ func TestBold(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Intensity: Bold}, {Fg: Red, Intensity: Bold}, {Fg: Red, FgBright: true, Intensity: Bold},
+		{Intensity: Bold}, {Fg: termenv.ANSIRed, Intensity: Bold}, {Fg: termenv.ANSIBrightRed, Intensity: Bold},
 	}, v.Format[0])
 }
 
@@ -262,7 +263,7 @@ func TestBrightFg(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Fg: Black, FgBright: true}, {Fg: Red, FgBright: true}, {Fg: White, FgBright: true},
+		{Fg: termenv.ANSIBrightBlack}, {Fg: termenv.ANSIBrightRed}, {Fg: termenv.ANSIBrightWhite},
 	}, v.Format[0])
 }
 
@@ -279,6 +280,6 @@ func TestBrightBg(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
 	assert.Equal(t, []Format{
-		{Bg: Black, BgBright: true}, {Bg: Red, BgBright: true}, {Bg: White, BgBright: true},
+		{Bg: termenv.ANSIBrightBlack}, {Bg: termenv.ANSIBrightRed}, {Bg: termenv.ANSIBrightWhite},
 	}, v.Format[0])
 }

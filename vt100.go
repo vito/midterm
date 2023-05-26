@@ -26,8 +26,8 @@ type Intensity int
 
 const (
 	Normal Intensity = 0
-	Bold             = 1
-	Faint            = 2
+	Bold   Intensity = 1
+	Faint  Intensity = 2
 	// TODO(jaguilar): Should this be in a subpackage, since the names are pretty collide-y?
 )
 
