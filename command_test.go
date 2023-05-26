@@ -341,10 +341,10 @@ func TestAutoResizeXY(t *testing.T) {
 		cmd, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
-	assert.Equal(t, 6, v.Width)
+	assert.Equal(t, 5, v.Width)
 	assert.Equal(t, 2, v.Height)
-	assert.Equal(t, "abcde ", string(v.Content[0]))
-	assert.Equal(t, []Format{{}, {}, {}, {}, {}, {}}, v.Format[0])
-	assert.Equal(t, "12345 ", string(v.Content[1]))
-	assert.Equal(t, []Format{{}, {}, {}, {}, {}, {}}, v.Format[1])
+	assert.Equal(t, "abcde", string(v.Content[0]))
+	assert.Equal(t, []Format{{}, {}, {}, {}, {}}, v.Format[0])
+	assert.Equal(t, "12345", string(v.Content[1]))
+	assert.Equal(t, []Format{{}, {}, {}, {}, {}}, v.Format[1])
 }

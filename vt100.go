@@ -346,7 +346,8 @@ func (v *VT100) put(r rune) {
 		v.maxY = v.Cursor.Y
 	}
 
-	v.scrollOrResizeIfNeeded()
+	v.scrollOrResizeYIfNeeded()
+	v.resizeXIfNeeded()
 	v.Content[v.Cursor.Y][v.Cursor.X] = r
 	v.Format[v.Cursor.Y][v.Cursor.X] = v.Cursor.F
 	v.advance()
@@ -361,10 +362,13 @@ func (v *VT100) advance() {
 	}
 }
 
-func (v *VT100) scrollOrResizeIfNeeded() {
+func (v *VT100) resizeXIfNeeded() {
 	if v.AutoResizeX && v.Cursor.X+1 >= v.Width {
 		v.resize(v.Height, v.Cursor.X+1)
 	}
+}
+
+func (v *VT100) scrollOrResizeYIfNeeded() {
 	if v.Cursor.Y >= v.Height {
 		if v.AutoResizeY {
 			v.resize(v.Cursor.Y+1, v.Width)

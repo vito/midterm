@@ -316,11 +316,11 @@ type controlCommand rune
 
 const (
 	backspace      controlCommand = '\b'
-	horizontalTab                 = '\t'
-	linefeed                      = '\n'
-	_verticalTab                  = '\v'
-	_formfeed                     = '\f'
-	carriageReturn                = '\r'
+	horizontalTab  controlCommand = '\t'
+	linefeed       controlCommand = '\n'
+	_verticalTab   controlCommand = '\v'
+	_formfeed      controlCommand = '\f'
+	carriageReturn controlCommand = '\r'
 )
 
 const tabWidth = 4
@@ -331,7 +331,7 @@ func (c controlCommand) display(v *VT100) error {
 		v.backspace()
 	case linefeed:
 		// scroll *before* advancing so a trailing linebreak doesn't waste a line
-		v.scrollOrResizeIfNeeded()
+		v.scrollOrResizeYIfNeeded()
 		v.Cursor.Y++
 		v.Cursor.X = 0
 	case horizontalTab:
