@@ -283,3 +283,68 @@ func TestBrightBg(t *testing.T) {
 		{Bg: termenv.ANSIBrightBlack}, {Bg: termenv.ANSIBrightRed}, {Bg: termenv.ANSIBrightWhite},
 	}, v.Format[0])
 }
+
+func TestAutoResizeX(t *testing.T) {
+	v := NewVT100(1, 1)
+	v.AutoResizeX = true
+	s := strings.NewReader("abcde")
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, "abcde", string(v.Content[0]))
+	assert.Equal(t, len("abcde"), v.Width)
+	assert.Equal(t, 1, v.Height)
+	assert.Equal(t, []Format{
+		{},
+		{},
+		{},
+		{},
+		{},
+	}, v.Format[0])
+}
+
+func TestAutoResizeY(t *testing.T) {
+	v := NewVT100(1, 1)
+	v.AutoResizeY = true
+	s := strings.NewReader("abcde")
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, 1, v.Width)
+	assert.Equal(t, 5, v.Height)
+	assert.Equal(t, "a", string(v.Content[0]))
+	assert.Equal(t, []Format{{}}, v.Format[0])
+	assert.Equal(t, "b", string(v.Content[1]))
+	assert.Equal(t, []Format{{}}, v.Format[1])
+	assert.Equal(t, "c", string(v.Content[2]))
+	assert.Equal(t, []Format{{}}, v.Format[2])
+	assert.Equal(t, "d", string(v.Content[3]))
+	assert.Equal(t, []Format{{}}, v.Format[3])
+	assert.Equal(t, "e", string(v.Content[4]))
+	assert.Equal(t, []Format{{}}, v.Format[4])
+}
+
+func TestAutoResizeXY(t *testing.T) {
+	v := NewVT100(1, 1)
+	v.AutoResizeX = true
+	v.AutoResizeY = true
+	s := strings.NewReader("abcde\n12345")
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, 6, v.Width)
+	assert.Equal(t, 2, v.Height)
+	assert.Equal(t, "abcde ", string(v.Content[0]))
+	assert.Equal(t, []Format{{}, {}, {}, {}, {}, {}}, v.Format[0])
+	assert.Equal(t, "12345 ", string(v.Content[1]))
+	assert.Equal(t, []Format{{}, {}, {}, {}, {}, {}}, v.Format[1])
+}

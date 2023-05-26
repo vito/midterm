@@ -122,9 +122,13 @@ type VT100 struct {
 	// Cursor is the current state of the cursor.
 	Cursor Cursor
 
-	// AutoResize indicates whether the terminal should automatically resize
+	// AutoResizeY indicates whether the terminal should automatically resize
 	// when the content exceeds its maximum height.
-	AutoResize bool
+	AutoResizeY bool
+
+	// AutoResizeX indicates whether the terminal should automatically resize
+	// when the content exceeds its maximum width.
+	AutoResizeX bool
 
 	// DebugLogs is a location to print ANSI parse errors and other debugging
 	// information.
@@ -351,15 +355,18 @@ func (v *VT100) put(r rune) {
 // advance advances the cursor, wrapping to the next line if need be.
 func (v *VT100) advance() {
 	v.Cursor.X++
-	if v.Cursor.X >= v.Width {
+	if v.Cursor.X >= v.Width && !v.AutoResizeX {
 		v.Cursor.X = 0
 		v.Cursor.Y++
 	}
 }
 
 func (v *VT100) scrollOrResizeIfNeeded() {
+	if v.AutoResizeX && v.Cursor.X+1 >= v.Width {
+		v.resize(v.Height, v.Cursor.X+1)
+	}
 	if v.Cursor.Y >= v.Height {
-		if v.AutoResize {
+		if v.AutoResizeY {
 			v.resize(v.Cursor.Y+1, v.Width)
 		} else {
 			v.scrollOne()
