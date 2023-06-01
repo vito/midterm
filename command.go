@@ -336,6 +336,9 @@ func (c controlCommand) display(v *VT100) error {
 		v.Cursor.X = 0
 	case horizontalTab:
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
+		if target >= v.Width {
+			target = v.Width - 1
+		}
 		for x := v.Cursor.X; x < target; x++ {
 			v.clear(v.Cursor.Y, x)
 		}

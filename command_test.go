@@ -194,19 +194,19 @@ func TestHorizontalTab(t *testing.T) {
 	v := vttest.FromLines("AA          \n")
 	v.Cursor.X = 2
 
-	for _, c := range cmds(tab + "b" + tab + "c") {
+	for _, c := range cmds(tab + "b" + tab + "c" + tab + "d" + tab + "e" + tab + "f") {
 		assert.Nil(t, v.Process(c))
 	}
 
-	assert.Equal(t, vttest.FromLines("AA  b   c   \n").Content, v.Content)
+	assert.Equal(t, vttest.FromLines("AA  b   c  d\n    e   f").Content, v.Content)
 
 	v.Cursor.X = 0
 	v.Cursor.Y = 1
-	for _, c := range cmds(tab + "b" + tab + "c") {
+	for _, c := range cmds(tab + "x" + tab + "y") {
 		assert.Nil(t, v.Process(c))
 	}
 
-	assert.Equal(t, vttest.FromLines("AA  b   c   \n    b   c   ").Content, v.Content)
+	assert.Equal(t, vttest.FromLines("AA  b   c  d\n    x   y").Content, v.Content)
 }
 
 func TestCarriageReturn(t *testing.T) {

@@ -348,8 +348,10 @@ func (v *VT100) put(r rune) {
 
 	v.scrollOrResizeYIfNeeded()
 	v.resizeXIfNeeded()
-	v.Content[v.Cursor.Y][v.Cursor.X] = r
-	v.Format[v.Cursor.Y][v.Cursor.X] = v.Cursor.F
+	row := v.Content[v.Cursor.Y]
+	row[v.Cursor.X] = r
+	rowF := v.Format[v.Cursor.Y]
+	rowF[v.Cursor.X] = v.Cursor.F
 	v.advance()
 }
 
