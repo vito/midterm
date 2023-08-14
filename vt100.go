@@ -433,15 +433,14 @@ func (v *VT100) eraseColumns(d eraseDirection) {
 	}
 }
 
-// eraseLines erases lines from the current terminal. Note that
-// no matter what is selected, the entire current line is erased.
+// eraseLines erases lines from the current terminal.
 func (v *VT100) eraseLines(d eraseDirection) {
-	y := v.Cursor.Y // Alias for simplicity.
+	x, y := v.Cursor.X, v.Cursor.Y // Alias for simplicity.
 	switch d {
 	case eraseBack:
-		v.eraseRegion(0, 0, y, v.Width-1)
+		v.eraseRegion(0, 0, y, x)
 	case eraseForward:
-		v.eraseRegion(y, 0, v.Height-1, v.Width-1)
+		v.eraseRegion(y, x, v.Height-1, v.Width-1)
 	case eraseAll:
 		v.eraseRegion(0, 0, v.Height-1, v.Width-1)
 	}
