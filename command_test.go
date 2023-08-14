@@ -235,6 +235,22 @@ func TestAttributes(t *testing.T) {
 	}, v.Format[0])
 }
 
+func TestEmptyReset(t *testing.T) {
+	v := vttest.FromLines("....")
+	s := strings.NewReader(
+		esc("[2ma") + esc("[5;22;31mb") + esc("[mc") + esc("[4;46md"))
+	cmd, err := Decode(s)
+	for err == nil {
+		assert.Nil(t, v.Process(cmd))
+		cmd, err = Decode(s)
+	}
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, []rune("abcd"), v.Content[0])
+	assert.Equal(t, []Format{
+		{Intensity: Faint}, {Blink: true, Fg: termenv.ANSIRed}, {Reset: true}, {Reset: true, Underline: true, Bg: termenv.ANSICyan},
+	}, v.Format[0])
+}
+
 func TestBold(t *testing.T) {
 	v := vttest.FromLines("...")
 	s := strings.NewReader(esc("[1ma") + esc("[31mb") + esc("[91mc"))

@@ -91,6 +91,10 @@ func unsave(v *VT100, _ []int) error {
 // A command to update the attributes of the cursor based on the arg list.
 func updateAttributes(v *VT100, args []int) error {
 	f := &v.Cursor.F
+	if len(args) == 0 {
+		*f = Format{Reset: true}
+		return nil
+	}
 
 	var unsupported []int
 	i := 0
