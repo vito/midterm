@@ -130,6 +130,12 @@ type VT100 struct {
 	// when the content exceeds its maximum width.
 	AutoResizeX bool
 
+	// ScrollRegion is the region of the terminal that is scrollable. If it is
+	// nil, the entire terminal is scrollable.
+	//
+	// This value is set by the CSI ; Ps ; Ps r command.
+	ScrollRegion *ScrollRegion
+
 	// DebugLogs is a location to print ANSI parse errors and other debugging
 	// information.
 	DebugLogs io.Writer
@@ -144,6 +150,10 @@ type VT100 struct {
 
 	// for synchronizing e.g. writes and async resizing
 	mut sync.Mutex
+}
+
+type ScrollRegion struct {
+	Start, End int
 }
 
 // NewVT100 creates a new VT100 object with the specified dimensions. y and x
@@ -375,26 +385,185 @@ func (v *VT100) scrollOrResizeYIfNeeded() {
 		if v.AutoResizeY {
 			v.resize(v.Cursor.Y+1, v.Width)
 		} else {
+			// log.Println("SCROLLONE", v.Cursor.Y, v.Height)
 			v.scrollOne()
 		}
 	}
 }
 
+func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
+	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
+		panic("invalid scrollUp inputs")
+		return // handle invalid inputs
+	}
+
+	for i := start; i < end-positions; i++ {
+		arr[i] = make([]T, len(arr[i+positions]))
+		copy(arr[i], arr[i+positions])
+	}
+
+	// Fill the newly scrolled lines with blank runes
+	for i := end - positions; i < end; i++ {
+		arr[i] = make([]T, len(arr[i]))
+		for j := range arr[i] {
+			arr[i][j] = empty
+		}
+	}
+}
+
+func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
+	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
+		panic("invalid scrollDown inputs")
+		return // handle invalid inputs
+	}
+
+	for i := end - 1; i >= start+positions; i-- {
+		arr[i] = make([]T, len(arr[i-positions]))
+		copy(arr[i], arr[i-positions])
+	}
+
+	// Fill the newly scrolled lines with blank runes
+	for i := start; i < start+positions; i++ {
+		arr[i] = make([]T, len(arr[i]))
+		for j := range arr[i] {
+			arr[i][j] = empty
+		}
+	}
+}
+
+func insertLines[T any](arr [][]T, start, ps int, empty T) {
+	if start < 0 || start+ps > len(arr) || ps <= 0 {
+		return // handle invalid inputs
+	}
+
+	// Shift lines down by Ps positions starting from the start position
+	for i := len(arr) - 1; i >= start+ps; i-- {
+		arr[i] = arr[i-ps]
+	}
+
+	// Fill the newly inserted lines with the empty value
+	for i := start; i < start+ps; i++ {
+		arr[i] = make([]T, len(arr[i]))
+		for j := range arr[i] {
+			arr[i][j] = empty
+		}
+	}
+}
+
+func deleteLines[T any](arr [][]T, start, ps int, empty T) {
+	if start < 0 || start+ps > len(arr) || ps <= 0 {
+		return // handle invalid inputs
+	}
+
+	// Delete Ps lines starting from the start position
+	copy(arr[start:], arr[start+ps:])
+
+	// Fill the end lines with the empty value
+	for i := len(arr) - ps; i < len(arr); i++ {
+		arr[i] = make([]T, len(arr[i]))
+		for j := range arr[i] {
+			arr[i][j] = empty
+		}
+	}
+}
+
+func eraseCharacters[T any](arr [][]T, row, col, ps int, empty T) {
+	if row < 0 || row >= len(arr) || col < 0 || col+ps > len(arr[row]) {
+		return // handle invalid inputs
+	}
+
+	if ps <= 0 {
+		ps = 1 // if Ps is 0 or negative, erase one character
+	}
+
+	// Replace Ps characters with the empty value starting from the given position
+	for i := col; i < col+ps; i++ {
+		arr[row][i] = empty
+	}
+}
+
+func repeatPrecedingCharacter[T any](arr [][]T, row, col, ps int) {
+	if row < 0 || row >= len(arr) || col <= 0 || col-1 >= len(arr[row]) || ps < 0 {
+		return // handle invalid inputs
+	}
+
+	charToRepeat := arr[row][col-1]
+
+	if ps == 0 {
+		ps = 1 // if Ps is 0, repeat the character once
+	}
+
+	// Repeat the preceding character Ps times starting from the current column
+	for i := 0; i < ps && col+i < len(arr[row]); i++ {
+		arr[row][col+i] = charToRepeat
+	}
+}
+
+func deleteCharacters[T any](arr [][]T, row, col, ps int, empty T) {
+	if row < 0 || row >= len(arr) || col < 0 || col >= len(arr[row]) || ps < 0 {
+		return // handle invalid inputs
+	}
+
+	if ps == 0 {
+		ps = 1 // if Ps is 0, delete one character
+	}
+
+	// Shift characters to the left by Ps positions starting from the given column
+	copy(arr[row][col:], arr[row][col+ps:])
+
+	// Fill the end characters with the empty value
+	for i := len(arr[row]) - ps; i < len(arr[row]); i++ {
+		arr[row][i] = empty
+	}
+}
+
+func (v *VT100) deleteCharacters(n int) {
+	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	deleteCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})
+}
+
+func (v *VT100) repeatPrecedingCharacter(n int) {
+	repeatPrecedingCharacter(v.Content, v.Cursor.Y, v.Cursor.X, n)
+	repeatPrecedingCharacter(v.Format, v.Cursor.Y, v.Cursor.X, n)
+}
+
+func (v *VT100) eraseCharacters(n int) {
+	eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	eraseCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})
+}
+
+func (v *VT100) insertLines(n int) {
+	insertLines(v.Content, v.Cursor.Y, n, ' ')
+	insertLines(v.Format, v.Cursor.Y, n, Format{})
+}
+
+func (v *VT100) deleteLines(n int) {
+	deleteLines(v.Content, v.Cursor.Y, n, ' ')
+	deleteLines(v.Format, v.Cursor.Y, n, Format{})
+}
+
+func (v *VT100) scrollDownN(n int) {
+	start, end := v.scrollRegion()
+	scrollDown(v.Content, n, start, end, ' ')
+	scrollDown(v.Format, n, start, end, Format{})
+}
+
+func (v *VT100) scrollUpN(n int) {
+	start, end := v.scrollRegion()
+	scrollUp(v.Content, n, start, end, ' ')
+	scrollUp(v.Format, n, start, end, Format{})
+}
+
+func (v *VT100) scrollRegion() (int, int) {
+	if v.ScrollRegion == nil {
+		return 0, v.Height
+	} else {
+		return v.ScrollRegion.Start, v.ScrollRegion.End
+	}
+}
+
 func (v *VT100) scrollOne() {
-	first := v.Content[0]
-	copy(v.Content, v.Content[1:])
-	for i := range first {
-		first[i] = ' '
-	}
-	v.Content[v.Height-1] = first
-
-	firstF := v.Format[0]
-	copy(v.Format, v.Format[1:])
-	for i := range first {
-		firstF[i] = Format{}
-	}
-	v.Format[v.Height-1] = firstF
-
+	v.scrollDownN(1)
 	v.Cursor.Y = v.Height - 1
 }
 

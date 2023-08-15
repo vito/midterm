@@ -3,12 +3,18 @@ package vt100
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/muesli/termenv"
 )
+
+func init() {
+	log.SetOutput(io.Discard)
+}
 
 // UnsupportedError indicates that we parsed an operation that this
 // terminal does not implement. Such errors indicate that the client
@@ -75,8 +81,123 @@ var (
 		'K': eraseColumns,
 		'f': home,
 		'm': updateAttributes,
+		'h': noop, // TODO DECSET
+		'l': noop, // TODO DECSET
+		't': noop, // TODO unknown, htop uses it. save xterm window/icon? https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h4-Functions-using-CSI-_-ordered-by-the-final-character-lparen-s-rparen:CSI-Ps;Ps;Ps-t.1EB0
+		'r': func(v *VT100, args []int) error {
+			log.Println("SET SCROLL REGION", args)
+			switch len(args) {
+			case 0:
+				v.ScrollRegion = nil
+			case 1: // TODO: handle \e[;10r and \e[10;r
+			case 2:
+				v.ScrollRegion = &ScrollRegion{
+					Start: args[0] - 1,
+					End:   args[1] - 1,
+				}
+			}
+			return nil
+		},
+		'=': noop, // TODO keypad??? htop again
+		'(': noop, // TODO unknown
+		')': noop, // TODO unknown
+		'*': noop, // TODO unknown
+		'+': noop, // TODO unknown
+		'-': noop, // TODO unknown
+		'.': noop, // TODO unknown
+		'/': noop, // TODO unknown
+		'd': func(v *VT100, args []int) error {
+			y := 1
+			if len(args) >= 1 {
+				y = args[0]
+			}
+
+			// NB: home is 1-indexed, hence the +1.
+			return home(v, []int{y, v.Cursor.X - 1})
+		},
+		// scroll down N times
+		'T': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			log.Println("SCROLL DOWN", n)
+			v.scrollDownN(n)
+
+			return nil
+		},
+		'S': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			log.Println("SCROLL UP", n)
+			v.scrollUpN(n)
+
+			return nil
+		},
+		'>': noop, // TODO unknown
+		'L': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			v.insertLines(n)
+
+			return nil
+		},
+		'M': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			v.deleteLines(n)
+
+			return nil
+		},
+		'n': noop, // TODO query?
+		'X': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			v.eraseCharacters(n)
+
+			return nil
+		},
+		'b': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			v.repeatPrecedingCharacter(n)
+
+			return nil
+		},
+		'P': func(v *VT100, args []int) error {
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			v.deleteCharacters(n)
+
+			return nil
+		},
+		']': noop, // TODO OS Command
 	}
 )
+
+func noop(v *VT100, args []int) error {
+	// TODO?
+	return nil
+}
 
 func save(v *VT100, _ []int) error {
 	v.save()
@@ -279,6 +400,7 @@ func home(v *VT100, args []int) error {
 func (c escapeCommand) display(v *VT100) error {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
+		panic(fmt.Sprintf("unknown command: %v", c))
 		return supportError(c.err(errors.New("unsupported command")))
 	}
 

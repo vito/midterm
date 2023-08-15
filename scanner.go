@@ -74,14 +74,42 @@ func scanEscapeCommand(s io.RuneScanner) (Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		if i == 0 && r == '[' {
-			csi = true
-			continue
+		if i == 0 {
+			switch r {
+			case '[':
+				csi = true
+				continue
+
+			case '(', ')', '*', '+', '-', '.', '/':
+				// character sets; ignore
+				l, _, err := s.ReadRune()
+				if err != nil {
+					return nil, err
+				}
+				// typical value is B, or USASCII
+				return escapeCommand{r, string(l)}, nil
+
+				// case ']':
+				// 	// Operating System Command
+				// 	osc := ""
+				// 	for {
+				// 		ch, _, err := s.ReadRune()
+				// 		if err != nil {
+				// 			return nil, err
+				// 		}
+				// 		switch r {
+				// 		case '\x07', '\x9c':
+				// 			return escapeCommand{r, osc}, nil
+				// 		default:
+				// 			osc += string(ch)
+				// 		}
+				// 	}
+			}
 		}
 
 		if !csi {
 			return escapeCommand{r, ""}, nil
-		} else if quote == false && unicode.Is(csEnd, r) {
+		} else if !quote && unicode.Is(csEnd, r) {
 			return escapeCommand{r, args.String()}, nil
 		}
 
