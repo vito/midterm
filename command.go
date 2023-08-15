@@ -3,8 +3,8 @@ package vt100
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,7 +13,8 @@ import (
 )
 
 func init() {
-	log.SetOutput(io.Discard)
+	f, _ := os.Create("/tmp/vt100.log")
+	log.SetOutput(f)
 }
 
 // UnsupportedError indicates that we parsed an operation that this
@@ -41,8 +42,12 @@ type Command interface {
 // to the current cell and advances the cursor.
 type runeCommand rune
 
-func (r runeCommand) display(v *VT100) error {
-	v.put(rune(r))
+func (c runeCommand) String() string {
+	return fmt.Sprintf("%T(%q)", c, string(c))
+}
+
+func (c runeCommand) display(v *VT100) error {
+	v.put(rune(c))
 	return nil
 }
 
@@ -55,7 +60,7 @@ type escapeCommand struct {
 }
 
 func (c escapeCommand) String() string {
-	return fmt.Sprintf("[%q %U](%v)", c.cmd, c.cmd, c.args)
+	return fmt.Sprintf("%T[%q %U](%v)", c, c.cmd, c.cmd, c.args)
 }
 
 type intHandler func(*VT100, []int) error
@@ -122,7 +127,6 @@ var (
 				n = args[0]
 			}
 
-			log.Println("SCROLL DOWN", n)
 			v.scrollDownN(n)
 
 			return nil
@@ -133,7 +137,6 @@ var (
 				n = args[0]
 			}
 
-			log.Println("SCROLL UP", n)
 			v.scrollUpN(n)
 
 			return nil
@@ -191,8 +194,31 @@ var (
 			return nil
 		},
 		']': noop, // TODO OS Command
+		'c': noop, // TODO Device Attributes
+		'q': noop, // TODO Set Cursor Style
 	}
 )
+
+type resetCommand struct{}
+
+func (resetCommand) String() string {
+	return "<reset>"
+}
+
+func (resetCommand) display(v *VT100) error {
+	v.Reset()
+	return nil
+}
+
+type noopCommand struct{}
+
+func (noopCommand) String() string {
+	return "<noop>"
+}
+
+func (noopCommand) display(v *VT100) error {
+	return nil
+}
 
 func noop(v *VT100, args []int) error {
 	// TODO?
@@ -400,7 +426,7 @@ func home(v *VT100, args []int) error {
 func (c escapeCommand) display(v *VT100) error {
 	f, ok := intHandlers[c.cmd]
 	if !ok {
-		panic(fmt.Sprintf("unknown command: %v", c))
+		log.Println("UNSUPPORTED COMMAND", c)
 		return supportError(c.err(errors.New("unsupported command")))
 	}
 
@@ -451,22 +477,31 @@ const (
 
 const tabWidth = 4
 
+func (c controlCommand) String() string {
+	return fmt.Sprintf("%T(%q)", c, string(c))
+}
+
 func (c controlCommand) display(v *VT100) error {
 	switch c {
 	case backspace:
 		v.backspace()
 	case linefeed:
-		// scroll *before* advancing so a trailing linebreak doesn't waste a line
-		v.scrollOrResizeYIfNeeded()
-		v.Cursor.Y++
 		v.Cursor.X = 0
+		if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.End {
+			v.scrollUpN(1)
+			return nil
+		}
+		v.Cursor.Y++
+		v.scrollOrResizeYIfNeeded()
 	case horizontalTab:
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
 		if target >= v.Width {
 			target = v.Width - 1
 		}
+		formatY := v.Format[v.Cursor.Y]
+		format := formatY[v.Cursor.X]
 		for x := v.Cursor.X; x < target; x++ {
-			v.clear(v.Cursor.Y, x)
+			v.clear(v.Cursor.Y, x, format)
 		}
 		v.Cursor.X = target
 	case carriageReturn:

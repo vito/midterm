@@ -25,7 +25,7 @@ func esc(s string) string {
 }
 
 func cmd(s string) Command {
-	cmd, err := Decode(strings.NewReader(s))
+	cmd, _, err := Decode(strings.NewReader(s))
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +36,7 @@ func cmds(s string) []Command {
 	var c []Command
 	r := strings.NewReader(s)
 	for {
-		x, err := Decode(r)
+		x, _, err := Decode(r)
 		if err == io.EOF {
 			return c
 		}
@@ -84,11 +84,11 @@ func TestCursorDirections(t *testing.T) {
 	}
 	var got []Cursor
 
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
 		got = append(got, v.Cursor)
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	if assert.Equal(t, err, io.EOF) {
 		assert.Equal(t, want, got)
@@ -223,10 +223,10 @@ func TestAttributes(t *testing.T) {
 	v := vttest.FromLines("....")
 	s := strings.NewReader(
 		esc("[2ma") + esc("[5;22;31mb") + esc("[0mc") + esc("[4;46md"))
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
@@ -239,10 +239,10 @@ func TestEmptyReset(t *testing.T) {
 	v := vttest.FromLines("....")
 	s := strings.NewReader(
 		esc("[2ma") + esc("[5;22;31mb") + esc("[mc") + esc("[4;46md"))
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abcd"), v.Content[0])
@@ -254,10 +254,10 @@ func TestEmptyReset(t *testing.T) {
 func TestBold(t *testing.T) {
 	v := vttest.FromLines("...")
 	s := strings.NewReader(esc("[1ma") + esc("[31mb") + esc("[91mc"))
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
@@ -271,10 +271,10 @@ func TestBrightFg(t *testing.T) {
 	s := strings.NewReader(
 		esc("[90ma") + esc("[91mb") + esc("[97mc"),
 	)
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
@@ -288,10 +288,10 @@ func TestBrightBg(t *testing.T) {
 	s := strings.NewReader(
 		esc("[100ma") + esc("[101mb") + esc("[107mc"),
 	)
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, []rune("abc"), v.Content[0])
@@ -304,10 +304,10 @@ func TestAutoResizeX(t *testing.T) {
 	v := NewVT100(1, 1)
 	v.AutoResizeX = true
 	s := strings.NewReader("abcde")
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, "abcde", string(v.Content[0]))
@@ -326,10 +326,10 @@ func TestAutoResizeY(t *testing.T) {
 	v := NewVT100(1, 1)
 	v.AutoResizeY = true
 	s := strings.NewReader("abcde")
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 1, v.Width)
@@ -351,10 +351,10 @@ func TestAutoResizeXY(t *testing.T) {
 	v.AutoResizeX = true
 	v.AutoResizeY = true
 	s := strings.NewReader("abcde\n12345")
-	cmd, err := Decode(s)
+	cmd, _, err := Decode(s)
 	for err == nil {
 		assert.Nil(t, v.Process(cmd))
-		cmd, err = Decode(s)
+		cmd, _, err = Decode(s)
 	}
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 5, v.Width)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"unicode"
 )
 
@@ -18,14 +19,14 @@ import (
 //
 // You should not share s with any other reader, because it could leave
 // the stream in an invalid state.
-func Decode(s io.RuneScanner) (Command, error) {
+func Decode(s io.RuneScanner) (Command, []rune, error) {
 	r, size, err := s.ReadRune()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if r == unicode.ReplacementChar && size == 1 {
-		return nil, fmt.Errorf("non-utf8 data from reader")
+		return nil, nil, fmt.Errorf("non-utf8 data from reader")
 	}
 
 	if r == escape || r == monogramCsi { // At beginning of escape sequence.
@@ -34,10 +35,10 @@ func Decode(s io.RuneScanner) (Command, error) {
 	}
 
 	if unicode.IsControl(r) {
-		return controlCommand(r), nil
+		return controlCommand(r), nil, nil
 	}
 
-	return runeCommand(r), nil
+	return runeCommand(r), nil, nil
 }
 
 const (
@@ -54,26 +55,31 @@ var (
 
 // scanEscapeCommand scans to the end of the current escape sequence. The scanner
 // must be positioned at an escape rune (esc or the unicode CSI).
-func scanEscapeCommand(s io.RuneScanner) (Command, error) {
+func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 	csi := false
+
 	esc, _, err := s.ReadRune()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if esc != escape && esc != monogramCsi {
-		return nil, fmt.Errorf("invalid content")
+		return nil, nil, fmt.Errorf("invalid content")
 	}
 	if esc == monogramCsi {
 		csi = true
 	}
+
+	// pessimistically keep track of everything we read
+	unparsed := []rune{esc}
 
 	var args bytes.Buffer
 	quote := false
 	for i := 0; ; i++ {
 		r, _, err := s.ReadRune()
 		if err != nil {
-			return nil, err
+			return nil, unparsed, err
 		}
+		unparsed = append(unparsed, r)
 		if i == 0 {
 			switch r {
 			case '[':
@@ -84,33 +90,46 @@ func scanEscapeCommand(s io.RuneScanner) (Command, error) {
 				// character sets; ignore
 				l, _, err := s.ReadRune()
 				if err != nil {
-					return nil, err
+					return nil, unparsed, err
 				}
 				// typical value is B, or USASCII
-				return escapeCommand{r, string(l)}, nil
+				return escapeCommand{r, string(l)}, nil, nil
 
-				// case ']':
-				// 	// Operating System Command
-				// 	osc := ""
-				// 	for {
-				// 		ch, _, err := s.ReadRune()
-				// 		if err != nil {
-				// 			return nil, err
-				// 		}
-				// 		switch r {
-				// 		case '\x07', '\x9c':
-				// 			return escapeCommand{r, osc}, nil
-				// 		default:
-				// 			osc += string(ch)
-				// 		}
-				// 	}
+			case ']':
+				// Operating System Command
+				osc := ""
+				for {
+					ch, _, err := s.ReadRune()
+					if err != nil {
+						return nil, unparsed, err
+					}
+					unparsed = append(unparsed, ch)
+					switch ch {
+					case '\x07', '\x9c':
+						return escapeCommand{r, osc}, nil, nil
+					default:
+						osc += string(ch)
+					}
+				}
+
+			case '=', '>', '7', '8':
+				// non-CSI; pass through
+				return escapeCommand{r, ""}, nil, nil
+
+			case 'M': // ESC M: scroll up
+				return escapeCommand{'T', ""}, nil, nil
+
+			case 'c': // ESC c: reset
+				return resetCommand{}, nil, nil
 			}
 		}
 
 		if !csi {
-			return escapeCommand{r, ""}, nil
+			// TODO
+			log.Println("UNKNOWN NON CSI CMD: " + string(r))
+			return escapeCommand{r, ""}, nil, nil
 		} else if !quote && unicode.Is(csEnd, r) {
-			return escapeCommand{r, args.String()}, nil
+			return escapeCommand{r, args.String()}, nil, nil
 		}
 
 		if r == '"' {

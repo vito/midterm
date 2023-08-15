@@ -37,11 +37,13 @@ nextCase:
 		s := strings.NewReader(testCase.in)
 
 		for i := 0; i < len(testCase.want); i++ {
-			got, err := Decode(s)
+			got, unparsed, err := Decode(s)
 			if err == io.EOF {
 				t.Error("unexpected eof")
 				continue nextCase
 			}
+
+			assert.Empty(t, unparsed)
 
 			if !assert.Nil(t, err, "unexpected error") {
 				continue
@@ -49,7 +51,8 @@ nextCase:
 
 			assert.Equal(t, testCase.want[i], got)
 		}
-		_, err := Decode(s)
+		_, unparsed, err := Decode(s)
 		assert.Equal(t, err, io.EOF)
+		assert.Empty(t, unparsed)
 	}
 }

@@ -15,98 +15,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"sort"
-	"strings"
+	"log"
 	"sync"
-
-	"github.com/muesli/termenv"
 )
-
-type Intensity int
-
-const (
-	Normal Intensity = 0
-	Bold   Intensity = 1
-	Faint  Intensity = 2
-	// TODO(jaguilar): Should this be in a subpackage, since the names are pretty collide-y?
-)
-
-func (i Intensity) alpha() uint8 {
-	switch i {
-	case Bold:
-		return 255
-	case Normal:
-		return 170
-	case Faint:
-		return 85
-	default:
-		return 170
-	}
-}
-
-// Format represents the display format of text on a terminal.
-type Format struct {
-	// Reset inidcates that the format should be reset prior to applying any of
-	// the other fields.
-	Reset bool
-	// Fg is the foreground color.
-	Fg termenv.Color
-	// Bg is the background color.
-	Bg termenv.Color
-	// Intensity is the text intensity (bright, normal, dim).
-	Intensity Intensity
-	// Various text properties.
-	Italic, Underline, Blink, Reverse, Conceal, CrossOut, Overline bool
-}
-
-func toCss(c termenv.Color) string {
-	return termenv.ConvertToRGB(c).Hex()
-}
-
-func (f Format) css() string {
-	parts := make([]string, 0)
-	fg, bg := f.Fg, f.Bg
-	if f.Reverse {
-		bg, fg = fg, bg
-	}
-
-	parts = append(parts, "color:"+toCss(fg))
-	parts = append(parts, "background-color:"+toCss(bg))
-	switch f.Intensity {
-	case Bold:
-		parts = append(parts, "font-weight:bold")
-	case Normal:
-	case Faint:
-		parts = append(parts, "opacity:0.33")
-	}
-	if f.Underline {
-		parts = append(parts, "text-decoration:underline")
-	}
-	if f.Conceal {
-		parts = append(parts, "display:none")
-	}
-	if f.Blink {
-		parts = append(parts, "text-decoration:blink")
-	}
-
-	// We're not in performance sensitive code. Although this sort
-	// isn't strictly necessary, it gives us the nice property that
-	// the style of a particular set of attributes will always be
-	// generated the same way. As a result, we can use the html
-	// output in tests.
-	sort.StringSlice(parts).Sort()
-
-	return strings.Join(parts, ";")
-}
-
-// Cursor represents both the position and text type of the cursor.
-type Cursor struct {
-	// Y and X are the coordinates.
-	Y, X int
-
-	// F is the format that will be displayed.
-	F Format
-}
 
 // VT100 represents a simplified, raw VT100 terminal.
 type VT100 struct {
@@ -152,6 +63,17 @@ type VT100 struct {
 	mut sync.Mutex
 }
 
+// Cursor represents both the position and text type of the cursor.
+type Cursor struct {
+	// Y and X are the coordinates.
+	Y, X int
+
+	// F is the format that will be displayed.
+	F Format
+}
+
+// ScrollRegion represents a region of the terminal that is
+// scrollable.
 type ScrollRegion struct {
 	Start, End int
 }
@@ -161,31 +83,36 @@ type ScrollRegion struct {
 //
 // Each cell is set to contain a ' ' rune, and all formats are left as the
 // default.
-func NewVT100(y, x int) *VT100 {
-	if y <= 0 || x <= 0 {
-		panic(fmt.Errorf("invalid dim (%d, %d)", y, x))
+func NewVT100(rows, cols int) *VT100 {
+	if rows <= 0 || cols <= 0 {
+		panic(fmt.Errorf("invalid dim (%d, %d)", rows, cols))
 	}
 
 	v := &VT100{
-		Height:  y,
-		Width:   x,
-		Content: make([][]rune, y),
-		Format:  make([][]Format, y),
+		Height: rows,
+		Width:  cols,
 
 		// start at -1 so there's no "used" height until first write
 		maxY: -1,
 	}
 
-	for row := 0; row < y; row++ {
-		v.Content[row] = make([]rune, x)
-		v.Format[row] = make([]Format, x)
-
-		for col := 0; col < x; col++ {
-			v.clear(row, col)
-		}
-	}
+	v.Reset()
 
 	return v
+}
+
+func (v *VT100) Reset() {
+	v.Content = make([][]rune, v.Height)
+	v.Format = make([][]Format, v.Height)
+	for row := 0; row < v.Height; row++ {
+		v.Content[row] = make([]rune, v.Width)
+		v.Format[row] = make([]Format, v.Width)
+		for col := 0; col < v.Width; col++ {
+			v.Content[row][col] = ' '
+		}
+	}
+	v.Cursor.X = 0
+	v.Cursor.Y = 0
 }
 
 func (v *VT100) UsedHeight() int {
@@ -207,7 +134,7 @@ func (v *VT100) resize(h, w int) {
 			v.Content = append(v.Content, make([]rune, v.Width))
 			v.Format = append(v.Format, make([]Format, v.Width))
 			for col := 0; col < v.Width; col++ {
-				v.clear(v.Height+row, col)
+				v.clear(v.Height+row, col, Format{})
 			}
 		}
 		v.Height = h
@@ -230,7 +157,7 @@ func (v *VT100) resize(h, w int) {
 			copy(format, v.Format[i])
 			v.Format[i] = format
 			for j := v.Width; j < w; j++ {
-				v.clear(i, j)
+				v.clear(i, j, Format{})
 			}
 		}
 		v.Width = w
@@ -253,21 +180,20 @@ func (v *VT100) Write(dt []byte) (int, error) {
 
 	n := len(dt)
 	if len(v.unparsed) > 0 {
-		dt = append(v.unparsed, dt...) // this almost never happens
+		dt = append(v.unparsed, dt...)
 		v.unparsed = nil
 	}
+
 	buf := bytes.NewBuffer(dt)
-	for {
-		if buf.Len() == 0 {
-			return n, nil
-		}
-		cmd, err := Decode(buf)
+	for buf.Len() > 0 {
+		cmd, unparsed, err := Decode(buf)
 		if err != nil {
-			if l := buf.Len(); l > 0 && l < 12 { // on small leftover handle unparsed, otherwise skip
-				v.unparsed = buf.Bytes()
-			}
-			return n, nil
+			log.Printf("!!! LEAVING UNPARSED: %q", string(unparsed))
+			v.unparsed = []byte(string(unparsed))
+			break
 		}
+
+		log.Println("DISPLAY", cmd)
 
 		if err := cmd.display(v); err != nil {
 			if v.DebugLogs != nil {
@@ -275,6 +201,8 @@ func (v *VT100) Write(dt []byte) (int, error) {
 			}
 		}
 	}
+
+	return n, nil
 }
 
 // Process handles a single ANSI terminal command, updating the terminal
@@ -391,7 +319,7 @@ func (v *VT100) scrollOrResizeYIfNeeded() {
 	}
 }
 
-func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
+func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
 		panic("invalid scrollUp inputs")
 		return // handle invalid inputs
@@ -411,7 +339,7 @@ func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
 	}
 }
 
-func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
+func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
 		panic("invalid scrollDown inputs")
 		return // handle invalid inputs
@@ -504,12 +432,17 @@ func deleteCharacters[T any](arr [][]T, row, col, ps int, empty T) {
 		return // handle invalid inputs
 	}
 
-	if ps == 0 {
-		ps = 1 // if Ps is 0, delete one character
+	// Calculate the actual number of characters to delete, so it doesn't exceed the available space
+	actualPs := ps
+	if actualPs == 0 {
+		actualPs = 1 // if Ps is 0, delete one character
+	}
+	if col+actualPs > len(arr[row]) {
+		actualPs = len(arr[row]) - col
 	}
 
 	// Shift characters to the left by Ps positions starting from the given column
-	copy(arr[row][col:], arr[row][col+ps:])
+	copy(arr[row][col:], arr[row][col+actualPs:])
 
 	// Fill the end characters with the empty value
 	for i := len(arr[row]) - ps; i < len(arr[row]); i++ {
@@ -563,7 +496,7 @@ func (v *VT100) scrollRegion() (int, int) {
 }
 
 func (v *VT100) scrollOne() {
-	v.scrollDownN(1)
+	v.scrollUpN(1)
 	v.Cursor.Y = v.Height - 1
 }
 
@@ -625,19 +558,25 @@ func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
 		x1, x2 = x2, x1
 	}
 
+	col := v.Cursor.X - 1
+	if col < 0 {
+		col = 0
+	}
+	f := v.Format[v.Cursor.Y][col]
+
 	for y := y1; y <= y2; y++ {
 		for x := x1; x <= x2; x++ {
-			v.clear(y, x)
+			v.clear(y, x, f)
 		}
 	}
 }
 
-func (v *VT100) clear(y, x int) {
+func (v *VT100) clear(y, x int, format Format) {
 	if y >= len(v.Content) || x >= len(v.Content[0]) {
 		return
 	}
 	v.Content[y][x] = ' '
-	v.Format[y][x] = Format{}
+	v.Format[y][x] = format
 }
 
 func (v *VT100) backspace() {
