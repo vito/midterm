@@ -200,6 +200,13 @@ func (v *VT100) Write(dt []byte) (int, error) {
 
 		log.Println("DISPLAY", cmd)
 
+		// grow before handling every command. this is a little unintuitive, but
+		// the root desire is to avoid leaving a trailing blank line when ending
+		// with "\n" since it wastes a row of output, but we also need to make
+		// sure we actually advance before we perform any other update.
+		v.scrollOrResizeYIfNeeded()
+		v.resizeXIfNeeded()
+
 		if err := cmd.display(v); err != nil {
 			if v.DebugLogs != nil {
 				fmt.Fprintln(v.DebugLogs, err)
@@ -289,8 +296,6 @@ func (v *VT100) put(r rune) {
 		v.maxY = v.Cursor.Y
 	}
 
-	v.scrollOrResizeYIfNeeded()
-	v.resizeXIfNeeded()
 	row := v.Content[v.Cursor.Y]
 	row[v.Cursor.X] = r
 	rowF := v.Format[v.Cursor.Y]

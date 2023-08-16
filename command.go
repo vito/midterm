@@ -486,10 +486,6 @@ func (c controlCommand) display(v *VT100) error {
 	case backspace:
 		v.backspace()
 	case linefeed:
-		// scroll before advancing the cursor, so that we're not left with a
-		// useless blank line at the end when in Pager mode
-		v.scrollOrResizeYIfNeeded()
-
 		v.Cursor.X = 0
 
 		if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.End {
@@ -501,9 +497,6 @@ func (c controlCommand) display(v *VT100) error {
 
 		v.Cursor.Y++
 	case horizontalTab:
-		// handle linefeed => horizontalTab
-		v.scrollOrResizeYIfNeeded()
-
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
 		if target >= v.Width {
 			target = v.Width - 1
