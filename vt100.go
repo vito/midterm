@@ -47,6 +47,11 @@ type VT100 struct {
 	// This value is set by the CSI ; Ps ; Ps r command.
 	ScrollRegion *ScrollRegion
 
+	// PagerMode optimizes the rendering of the terminal for read-only log
+	// viewing. It will not display the cursor location, and it will avoid
+	// rendering a final blank line.
+	PagerMode bool
+
 	// DebugLogs is a location to print ANSI parse errors and other debugging
 	// information.
 	DebugLogs io.Writer

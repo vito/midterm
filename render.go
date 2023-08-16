@@ -16,7 +16,7 @@ func (vt *VT100) RenderLine(w io.Writer, row int) error {
 		f := vt.Format[row][col]
 
 		if row == vt.Cursor.Y && col == vt.Cursor.X {
-			f.Reverse = true
+			f.Reverse = !vt.PagerMode
 		}
 
 		if f != lastFormat {
@@ -33,7 +33,7 @@ func (vt *VT100) RenderLine(w io.Writer, row int) error {
 		}
 	}
 
-	_, err := w.Write([]byte(reset))
+	_, err := fmt.Fprintln(w, reset)
 	return err
 }
 
