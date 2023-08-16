@@ -96,9 +96,15 @@ var (
 				v.ScrollRegion = nil
 			case 1: // TODO: handle \e[;10r and \e[10;r
 			case 2:
-				v.ScrollRegion = &ScrollRegion{
-					Start: args[0] - 1,
-					End:   args[1] - 1,
+				start, end := args[0]-1, args[1]-1
+				if start == 0 && end == v.Height-1 {
+					// equivalent to just resetting
+					v.ScrollRegion = nil
+				} else {
+					v.ScrollRegion = &ScrollRegion{
+						Start: start,
+						End:   end,
+					}
 				}
 			}
 			return nil
