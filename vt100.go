@@ -314,6 +314,7 @@ func (v *VT100) advance() {
 
 func (v *VT100) resizeXIfNeeded() {
 	if v.AutoResizeX && v.Cursor.X+1 >= v.Width {
+		log.Println("RESIZING X NEEDED", v.Cursor.Y, v.Height)
 		v.resize(v.Height, v.Cursor.X+1)
 	}
 }
@@ -321,9 +322,10 @@ func (v *VT100) resizeXIfNeeded() {
 func (v *VT100) scrollOrResizeYIfNeeded() {
 	if v.Cursor.Y >= v.Height {
 		if v.AutoResizeY {
+			log.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
 			v.resize(v.Cursor.Y+1, v.Width)
 		} else {
-			// log.Println("SCROLLONE", v.Cursor.Y, v.Height)
+			log.Println("SCROLLING NEEDED", v.Cursor.Y, v.Height)
 			v.scrollOne()
 		}
 	}
