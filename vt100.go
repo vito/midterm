@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime/debug"
 	"sync"
 )
 
@@ -180,6 +181,13 @@ func (v *VT100) resize(h, w int) {
 }
 
 func (v *VT100) Write(dt []byte) (int, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("RECOVERED WRITE PANIC:", err)
+			log.Default().Writer().Write(debug.Stack())
+		}
+	}()
+
 	v.mut.Lock()
 	defer v.mut.Unlock()
 
