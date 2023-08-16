@@ -183,7 +183,7 @@ func (v *VT100) resize(h, w int) {
 func (v *VT100) Write(dt []byte) (int, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("RECOVERED WRITE PANIC:", err)
+			log.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
 			log.Default().Writer().Write(debug.Stack())
 		}
 	}()
@@ -206,12 +206,11 @@ func (v *VT100) Write(dt []byte) (int, error) {
 			break
 		}
 
-		log.Println("DISPLAY", cmd)
-
 		// grow before handling every command. this is a little unintuitive, but
 		// the root desire is to avoid leaving a trailing blank line when ending
 		// with "\n" since it wastes a row of output, but we also need to make
-		// sure we actually advance before we perform any other update.
+		// sure we actually advance before we perform any other update to avoid
+		// bounds related panics.
 		v.scrollOrResizeYIfNeeded()
 		v.resizeXIfNeeded()
 
