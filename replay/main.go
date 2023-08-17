@@ -19,7 +19,7 @@ const rows = 24
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: vt100 <record|repro> <output>")
+		fmt.Println("Usage: vt100 <record|replay> <output>")
 		os.Exit(1)
 	}
 	cmd, out := os.Args[1], os.Args[2]
@@ -28,17 +28,17 @@ func main() {
 		if err := record(out); err != nil {
 			log.Fatal(err)
 		}
-	case "repro":
-		if err := repro(out); err != nil {
+	case "replay":
+		if err := replay(out); err != nil {
 			log.Fatal(err)
 		}
 	default:
-		fmt.Println("Usage: vt100 <record|repro> <output>")
+		fmt.Println("Usage: vt100 <record|replay> <output>")
 		os.Exit(1)
 	}
 }
 
-func repro(out string) error {
+func replay(out string) error {
 	vt := vt100.NewVT100(rows, cols)
 
 	content, err := os.ReadFile(out)
@@ -47,7 +47,7 @@ func repro(out string) error {
 	}
 
 	// vt.Write(content)
-	fields := bytes.SplitAfter(content, []byte("\n"))
+	fields := splitBefore(content, []byte("\x1b"))
 
 	for _, f := range fields {
 		before := new(bytes.Buffer)
@@ -55,7 +55,7 @@ func repro(out string) error {
 		vt.Write(f)
 		after := new(bytes.Buffer)
 		renderVt(after, vt)
-		fmt.Println("-------------------------------------------------------------------------------------------")
+		fmt.Printf("------------------------------------------------------------------------------------------- %q\n", f)
 		renderVt(os.Stdout, vt)
 		// if regexp.MustCompile("\x1b" + `\[.*[TS]`).Match(after.Bytes()) {
 		// 	fmt.Print(before.String())
@@ -67,6 +67,22 @@ func repro(out string) error {
 	renderVt(os.Stdout, vt)
 
 	return nil
+}
+
+func splitBefore(data []byte, delim []byte) [][]byte {
+	if len(delim) == 0 {
+		return [][]byte{data}
+	}
+	var result [][]byte
+	start := 0
+	for i := 0; i+len(delim) <= len(data); i++ {
+		if bytes.Equal(data[i:i+len(delim)], delim) {
+			result = append(result, data[start:i])
+			start = i
+		}
+	}
+	result = append(result, data[start:])
+	return result
 }
 
 func record(out string) error {
@@ -89,6 +105,8 @@ func record(out string) error {
 	defer func() { _ = ptmx.Close() }() // Best effort.
 
 	vt := vt100.NewVT100(rows, cols)
+	vt.Response = ptmx
+	vt.ForwardRequests = os.Stdin
 
 	prog := tea.NewProgram(&vtModel{vt}, tea.WithInput(nil))
 
