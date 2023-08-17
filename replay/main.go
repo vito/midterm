@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/creack/pty"
@@ -103,16 +102,24 @@ func record(out string) error {
 	}
 
 	go func() {
-		io.Copy(io.MultiWriter(vt, raw), ptmx)
+		for {
+			buf := make([]byte, 32*1024)
+			n, err := ptmx.Read(buf)
+			if err != nil {
+				break
+			}
+			raw.Write(buf[:n])
+			prog.Send(ptyMsg(buf[:n]))
+		}
+
 		prog.Quit()
 	}()
 
-	m, err := prog.Run()
+	_, err = prog.Run()
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(m.View())
 	return nil
 }
 
@@ -121,25 +128,19 @@ type vtModel struct {
 }
 
 func (m vtModel) Init() tea.Cmd {
-	return tick()
+	return nil
 }
-
-func tick() tea.Cmd {
-	return tea.Tick(100, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
-type tickMsg time.Time
 
 type exitMsg error
 
+type ptyMsg []byte
+
 func (m vtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case tickMsg:
-		return m, tick()
+	switch x := msg.(type) {
 	case exitMsg:
 		return m, tea.Quit
+	case ptyMsg:
+		m.vt.Write(x)
 	}
 	return m, nil
 }
