@@ -123,7 +123,25 @@ var (
 		'/': noopEsc, // Character sets
 		'=': noopEsc, // Application keypad
 		'>': noopEsc, // Normal keypad
-		']': noopEsc, // OS Command
+		']': func(v *VT100, arg string) error { // OSC (OS Command)
+			args := strings.Split(arg, ";")
+			if len(args) == 0 {
+				dbg.Println("EMPTY OSC")
+				return nil
+			}
+			switch args[0] {
+			case "52":
+				// forward along
+				if strings.HasSuffix(arg, "?") {
+					dbg.Println("FORWARDING OSC 52 REQUEST", arg)
+					fmt.Fprintf(v.ForwardRequests, "\x1b]%s\x07", args)
+				} else {
+					dbg.Println("FORWARDING OSC 52 RESPONSE", arg)
+					fmt.Fprintf(v.ForwardResponses, "\x1b]%s\x07", args)
+				}
+			}
+			return nil
+		},
 		'7': func(v *VT100, _ string) error {
 			v.save()
 			return nil
@@ -240,15 +258,15 @@ var (
 				dbg.Println("EMPTY QUERY?", args)
 				return nil
 			}
-			if v.Response == nil {
+			if v.ForwardResponses == nil {
 				dbg.Println("NO RESPONSE CHANNEL", args)
 				return nil
 			}
 			switch args[0] {
 			case 5:
-				fmt.Fprint(v.Response, termenv.CSI+"0n")
+				fmt.Fprint(v.ForwardResponses, termenv.CSI+"0n")
 			case 6:
-				fmt.Fprintf(v.Response, "%s%d;%dR", termenv.CSI, v.Cursor.Y+1, v.Cursor.X+1)
+				fmt.Fprintf(v.ForwardResponses, "%s%d;%dR", termenv.CSI, v.Cursor.Y+1, v.Cursor.X+1)
 			default:
 				dbg.Println("UNKNOWN QUERY", args)
 			}

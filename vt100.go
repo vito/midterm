@@ -60,8 +60,8 @@ type VT100 struct {
 	// savedCursor is the state of the cursor last time save() was called.
 	savedCursor Cursor
 
-	// Response is the writer to which we send responses to CSI/OSC queries.
-	Response io.Writer
+	// ForwardResponses is the writer to which we send responses to CSI/OSC queries.
+	ForwardResponses io.Writer
 
 	// ForwardRequests is the writer to which we send requests to forward
 	// to the terminal.

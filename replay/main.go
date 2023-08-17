@@ -105,7 +105,7 @@ func record(out string) error {
 	defer func() { _ = ptmx.Close() }() // Best effort.
 
 	vt := vt100.NewVT100(rows, cols)
-	vt.Response = ptmx
+	vt.ForwardResponses = ptmx
 	vt.ForwardRequests = os.Stdin
 
 	prog := tea.NewProgram(&vtModel{vt}, tea.WithInput(nil))

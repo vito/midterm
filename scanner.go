@@ -105,7 +105,7 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 					unparsed = append(unparsed, ch)
 					switch ch {
 					case '\x07', '\x9c': // BEL, ST
-						return csiCommand{r, osc}, nil, nil
+						return escCommand{r, osc}, nil, nil
 					case '\x1b': // possibly ST (alternate form, e.g. notcurses)
 						ch, _, err := s.ReadRune()
 						if err != nil {
@@ -113,7 +113,7 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 						}
 						unparsed = append(unparsed, ch)
 						if ch == '\\' { // ST (\x1b\\)
-							return csiCommand{r, osc}, nil, nil
+							return escCommand{r, osc}, nil, nil
 						}
 					default:
 						osc += string(ch)
