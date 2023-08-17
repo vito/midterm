@@ -287,13 +287,13 @@ func updateAttributes(v *VT100, args []int) error {
 		case 39:
 			f.Fg = nil
 		case 90, 91, 92, 93, 94, 95, 96, 97:
-			f.Fg = termenv.ANSIColor(x - 90 + 8)
+			f.Fg = termenv.ANSIColor(x-90) + termenv.ANSIBrightBlack
 		case 40, 41, 42, 43, 44, 45, 46, 47:
 			f.Bg = termenv.ANSIColor(x - 40)
 		case 49:
 			f.Bg = nil
 		case 100, 101, 102, 103, 104, 105, 106, 107:
-			f.Bg = termenv.ANSIColor(x - 100 + 8)
+			f.Bg = termenv.ANSIColor(x-100) + termenv.ANSIBrightBlack
 		case 38, 48: // 256-color foreground/background
 			bg := x == 48
 

@@ -39,20 +39,31 @@ func (vt *VT100) RenderLine(w io.Writer, row int) error {
 
 const reset = termenv.CSI + termenv.ResetSeq + "m"
 
+func brighten(color termenv.Color) termenv.Color {
+	if ansi, ok := color.(termenv.ANSIColor); ok {
+		return ansi + termenv.ANSIBrightBlack
+	} else {
+		return color
+	}
+}
+
 func (f Format) Render() string {
 	styles := []string{}
+
+	switch f.Intensity {
+	case Bold:
+		styles = append(styles, termenv.BoldSeq)
+		f.Fg = brighten(f.Fg)
+	case Faint:
+		styles = append(styles, termenv.FaintSeq)
+		f.Bg = brighten(f.Bg)
+	}
+
 	if f.Fg != nil {
 		styles = append(styles, f.Fg.Sequence(false))
 	}
 	if f.Bg != nil {
 		styles = append(styles, f.Bg.Sequence(true))
-	}
-
-	switch f.Intensity {
-	case Bold:
-		styles = append(styles, termenv.BoldSeq)
-	case Faint:
-		styles = append(styles, termenv.FaintSeq)
 	}
 
 	if f.Italic {

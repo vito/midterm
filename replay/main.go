@@ -153,6 +153,5 @@ func (m vtModel) View() string {
 func renderVt(w io.Writer, vt *vt100.VT100) {
 	for i := 0; i < vt.Height; i++ {
 		vt.RenderLine(w, i)
-		fmt.Fprintln(w)
 	}
 }
