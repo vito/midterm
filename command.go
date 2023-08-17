@@ -3,19 +3,12 @@ package vt100
 import (
 	"errors"
 	"fmt"
-	"log"
-	"os"
-	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/muesli/termenv"
 )
-
-func init() {
-	f, _ := os.Create("/tmp/vt100.log")
-	log.SetOutput(f)
-}
 
 // UnsupportedError indicates that we parsed an operation that this
 // terminal does not implement. Such errors indicate that the client
@@ -51,31 +44,116 @@ func (c runeCommand) display(v *VT100) error {
 	return nil
 }
 
-// escapeCommand is a control sequence command. It includes a variety
-// of control and escape sequences that move and modify the cursor
-// or the terminal.
-type escapeCommand struct {
-	cmd  rune
-	args string
+func setMode(v *VT100, mode []string) error {
+	if len(mode) == 0 {
+		dbg.Println("EMPTY SET MODE")
+		return nil
+	}
+	switch mode[0] {
+	case "4":
+		dbg.Println("SET RESET MODE")
+	case "?1":
+		dbg.Println("SET APP CURSOR MODE")
+		if v.ForwardRequests != nil {
+			fmt.Fprintf(v.ForwardRequests, "\x1b[?1h")
+		}
+	case "?7":
+		dbg.Println("SET WRAP MODE")
+	case "?12":
+		epoch := time.Now()
+		v.CursorBlinkEpoch = &epoch
+	case "?25":
+		v.CursorVisible = true
+	case "?1000":
+		dbg.Println("SET MOUSE TRACKING MODE")
+	case "?1049":
+		dbg.Println("SET ALT SCREEN")
+	case "?2004":
+		dbg.Println("SET BRACKETED PASTE")
+	default:
+		dbg.Println("SET UNKNOWN MODE", mode)
+	}
+	return nil
 }
 
-func (c escapeCommand) String() string {
-	return fmt.Sprintf("%T[%q %U](%v)", c, c.cmd, c.cmd, c.args)
+func unsetMode(v *VT100, mode []string) error {
+	if len(mode) == 0 {
+		dbg.Println("EMPTY UNSET MODE")
+		return nil
+	}
+	switch mode[0] {
+	case "4":
+		dbg.Println("UNSET RESET MODE")
+	case "?1":
+		if v.ForwardRequests != nil {
+			fmt.Fprintf(v.ForwardRequests, "\x1b[?1l")
+		}
+	case "?7":
+		dbg.Println("UNSET WRAP MODE")
+	case "?12":
+		v.CursorBlinkEpoch = nil
+	case "?25":
+		v.CursorVisible = false
+	case "?1000":
+		dbg.Println("UNSET MOUSE TRACKING MODE")
+	case "?1049":
+		dbg.Println("UNSET ALT SCREEN")
+	case "?2004":
+		dbg.Println("UNSET BRACKETED PASTE")
+	default:
+		dbg.Println("UNSET UNKNOWN MODE", mode)
+	}
+	return nil
 }
+
+type escHandler func(*VT100, string) error
 
 type intHandler func(*VT100, []int) error
 
+type strHandler func(*VT100, []string) error
+
 var (
-	// intHandlers are handlers for which all arguments are numbers.
-	// This is most of them -- all the ones that we process. Eventually,
-	// we may add handlers that support non-int args. Those handlers
-	// will instead receive []string, and they'll have to choose on their
-	// own how they might be parsed.
-	intHandlers = map[rune]intHandler{
+	escHandlers = map[rune]escHandler{
+		'(': noopEsc, // Character sets
+		')': noopEsc, // Character sets
+		'*': noopEsc, // Character sets
+		'+': noopEsc, // Character sets
+		'-': noopEsc, // Character sets
+		'.': noopEsc, // Character sets
+		'/': noopEsc, // Character sets
+		'=': noopEsc, // Application keypad
+		'>': noopEsc, // Normal keypad
+		']': noopEsc, // OS Command
+		'7': func(v *VT100, _ string) error {
+			v.save()
+			return nil
+		},
+		'8': func(v *VT100, _ string) error {
+			v.unsave()
+			return nil
+		},
+		'D': func(v *VT100, arg string) error {
+			v.moveDown()
+			return nil
+		},
+		'M': func(v *VT100, arg string) error {
+			v.moveUp()
+			return nil
+		},
+		'c': func(v *VT100, arg string) error {
+			v.Reset()
+			return nil
+		},
+	}
+
+	csiStrHandlers = map[rune]strHandler{
+		'h': setMode,
+		'l': unsetMode,
+	}
+
+	csiIntHandlers = map[rune]intHandler{
 		's': save,
-		'7': save,
 		'u': unsave,
-		'8': unsave,
 		'A': relativeMove(-1, 0),
 		'B': relativeMove(1, 0),
 		'C': relativeMove(0, 1),
@@ -86,11 +164,8 @@ var (
 		'K': eraseColumns,
 		'f': home,
 		'm': updateAttributes,
-		'h': noop, // TODO DECSET
-		'l': noop, // TODO DECSET
-		't': noop, // TODO unknown, htop uses it. save xterm window/icon? https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h4-Functions-using-CSI-_-ordered-by-the-final-character-lparen-s-rparen:CSI-Ps;Ps;Ps-t.1EB0
+		't': noopInt, // Window manipulation
 		'r': func(v *VT100, args []int) error {
-			log.Println("SET SCROLL REGION", args)
 			switch len(args) {
 			case 0:
 				v.ScrollRegion = nil
@@ -109,14 +184,6 @@ var (
 			}
 			return nil
 		},
-		'=': noop, // TODO keypad??? htop again
-		'(': noop, // TODO unknown
-		')': noop, // TODO unknown
-		'*': noop, // TODO unknown
-		'+': noop, // TODO unknown
-		'-': noop, // TODO unknown
-		'.': noop, // TODO unknown
-		'/': noop, // TODO unknown
 		'd': func(v *VT100, args []int) error {
 			y := 1
 			if len(args) >= 1 {
@@ -147,7 +214,6 @@ var (
 
 			return nil
 		},
-		'>': noop, // TODO unknown
 		'L': func(v *VT100, args []int) error {
 			n := 1
 			if len(args) >= 1 {
@@ -168,7 +234,26 @@ var (
 
 			return nil
 		},
-		'n': noop, // TODO query?
+		'n': func(v *VT100, args []int) error { // Device Status Report
+			dbg.Println("QUERYING", args)
+			if len(args) == 0 {
+				dbg.Println("EMPTY QUERY?", args)
+				return nil
+			}
+			if v.Response == nil {
+				dbg.Println("NO RESPONSE CHANNEL", args)
+				return nil
+			}
+			switch args[0] {
+			case 5:
+				fmt.Fprint(v.Response, termenv.CSI+"0n")
+			case 6:
+				fmt.Fprintf(v.Response, "%s%d;%dR", termenv.CSI, v.Cursor.Y+1, v.Cursor.X+1)
+			default:
+				dbg.Println("UNKNOWN QUERY", args)
+			}
+			return nil
+		},
 		'X': func(v *VT100, args []int) error {
 			n := 1
 			if len(args) >= 1 {
@@ -199,22 +284,10 @@ var (
 
 			return nil
 		},
-		']': noop, // TODO OS Command
-		'c': noop, // TODO Device Attributes
-		'q': noop, // TODO Set Cursor Style
+		// 'c': noop, // TODO Device Attributes
+		// 'q': noop, // TODO Set Cursor Style
 	}
 )
-
-type resetCommand struct{}
-
-func (resetCommand) String() string {
-	return "<reset>"
-}
-
-func (resetCommand) display(v *VT100) error {
-	v.Reset()
-	return nil
-}
 
 type noopCommand struct{}
 
@@ -226,8 +299,15 @@ func (noopCommand) display(v *VT100) error {
 	return nil
 }
 
-func noop(v *VT100, args []int) error {
-	// TODO?
+func noopInt(v *VT100, args []int) error {
+	return nil
+}
+
+func noopStr(v *VT100, args []string) error {
+	return nil
+}
+
+func noopEsc(v *VT100, arg string) error {
 	return nil
 }
 
@@ -429,10 +509,47 @@ func home(v *VT100, args []int) error {
 	return err
 }
 
-func (c escapeCommand) display(v *VT100) error {
-	f, ok := intHandlers[c.cmd]
+// escCommand is an escape sequence command. It includes a variety
+type escCommand struct {
+	cmd rune
+	arg string
+}
+
+func (c escCommand) String() string {
+	return fmt.Sprintf("%T[%q %U](%v)", c, c.cmd, c.cmd, c.arg)
+}
+
+func (c escCommand) display(v *VT100) error {
+	f, ok := escHandlers[c.cmd]
 	if !ok {
-		log.Println("UNSUPPORTED COMMAND", c)
+		dbg.Println("UNSUPPORTED COMMAND", c)
+		return fmt.Errorf("unsupported escape sequence: %q (%s)", c.cmd, c)
+	}
+
+	return f(v, c.arg)
+}
+
+// csiCommand is a control sequence command. It includes a variety
+// of control and escape sequences that move and modify the cursor
+// or the terminal.
+type csiCommand struct {
+	cmd  rune
+	args string
+}
+
+func (c csiCommand) String() string {
+	return fmt.Sprintf("%T[%q %U](%v)", c, c.cmd, c.cmd, c.args)
+}
+
+func (c csiCommand) display(v *VT100) error {
+	strF, ok := csiStrHandlers[c.cmd]
+	if ok {
+		return strF(v, c.argStrs())
+	}
+
+	f, ok := csiIntHandlers[c.cmd]
+	if !ok {
+		dbg.Println("UNSUPPORTED COMMAND", c)
 		return supportError(c.err(errors.New("unsupported command")))
 	}
 
@@ -445,16 +562,11 @@ func (c escapeCommand) display(v *VT100) error {
 }
 
 // err enhances e with information about the current escape command
-func (c escapeCommand) err(e error) error {
+func (c csiCommand) err(e error) error {
 	return fmt.Errorf("%s: %s", c, e)
 }
 
-var csArgsRe = regexp.MustCompile("^([^0-9]*)(.*)$")
-
-// argInts parses c.args as a slice of at least arity ints. If the number
-// of ; separated arguments is less than arity, the remaining elements of
-// the result will be zero. errors only on integer parsing failure.
-func (c escapeCommand) argInts() ([]int, error) {
+func (c csiCommand) argInts() ([]int, error) {
 	if len(c.args) == 0 {
 		return make([]int, 0), nil
 	}
@@ -468,6 +580,10 @@ func (c escapeCommand) argInts() ([]int, error) {
 		out[i] = int(x)
 	}
 	return out, nil
+}
+
+func (c csiCommand) argStrs() []string {
+	return strings.Split(c.args, ";")
 }
 
 type controlCommand rune
@@ -492,16 +608,8 @@ func (c controlCommand) display(v *VT100) error {
 	case backspace:
 		v.backspace()
 	case linefeed:
-		v.Cursor.X = 0
-
-		if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.End {
-			// if we're at the bottom of the scroll region, scroll it instead of
-			// moving the cursor
-			v.scrollUpN(1)
-			return nil
-		}
-
-		v.Cursor.Y++
+		v.Cursor.X = 0 // TODO is this right? seems like we're ignoring raw/cooked
+		v.moveDown()
 	case horizontalTab:
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
 		if target >= v.Width {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"unicode"
 )
 
@@ -87,13 +86,13 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 				continue
 
 			case '(', ')', '*', '+', '-', '.', '/':
-				// character sets; ignore
+				// character sets
 				l, _, err := s.ReadRune()
 				if err != nil {
 					return nil, unparsed, err
 				}
 				// typical value is B, or USASCII
-				return escapeCommand{r, string(l)}, nil, nil
+				return escCommand{r, string(l)}, nil, nil
 
 			case ']':
 				// Operating System Command
@@ -105,31 +104,34 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 					}
 					unparsed = append(unparsed, ch)
 					switch ch {
-					case '\x07', '\x9c':
-						return escapeCommand{r, osc}, nil, nil
+					case '\x07', '\x9c': // BEL, ST
+						return csiCommand{r, osc}, nil, nil
+					case '\x1b': // possibly ST (alternate form, e.g. notcurses)
+						ch, _, err := s.ReadRune()
+						if err != nil {
+							return nil, unparsed, err
+						}
+						unparsed = append(unparsed, ch)
+						if ch == '\\' { // ST (\x1b\\)
+							return csiCommand{r, osc}, nil, nil
+						}
 					default:
 						osc += string(ch)
 					}
 				}
 
-			case '=', '>', '7', '8':
+			case '=', '>', '7', '8', 'D', 'M', 'c':
 				// non-CSI; pass through
-				return escapeCommand{r, ""}, nil, nil
-
-			case 'M': // ESC M: scroll up
-				return escapeCommand{'T', ""}, nil, nil
-
-			case 'c': // ESC c: reset
-				return resetCommand{}, nil, nil
+				return escCommand{r, ""}, nil, nil
 			}
 		}
 
 		if !csi {
 			// TODO
-			log.Println("UNKNOWN NON CSI CMD: " + string(r))
-			return escapeCommand{r, ""}, nil, nil
+			dbg.Println("UNKNOWN NON CSI CMD: " + string(r))
+			return csiCommand{r, ""}, nil, nil
 		} else if !quote && unicode.Is(csEnd, r) {
-			return escapeCommand{r, args.String()}, nil, nil
+			return csiCommand{r, args.String()}, nil, nil
 		}
 
 		if r == '"' {
@@ -141,4 +143,10 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 			panic(err) // WriteRune cannot return an error from bytes.Buffer.
 		}
 	}
+}
+
+type commandFunc func(v *VT100) error
+
+func (f commandFunc) display(v *VT100) error {
+	return f(v)
 }

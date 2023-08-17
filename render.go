@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/muesli/termenv"
 )
@@ -15,8 +16,9 @@ func (vt *VT100) RenderLine(w io.Writer, row int) error {
 	for col, r := range line {
 		f := vt.Format[row][col]
 
-		if row == vt.Cursor.Y && col == vt.Cursor.X {
-			f.Reverse = !vt.PagerMode
+		if vt.CursorVisible && row == vt.Cursor.Y && col == vt.Cursor.X {
+			f.Reverse = vt.CursorBlinkEpoch == nil ||
+				int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0
 		}
 
 		if f != lastFormat {
@@ -33,14 +35,14 @@ func (vt *VT100) RenderLine(w io.Writer, row int) error {
 		}
 	}
 
-	_, err := fmt.Fprintln(w, reset)
+	_, err := fmt.Fprintln(w, resetSeq)
 	return err
 }
 
-const reset = termenv.CSI + termenv.ResetSeq + "m"
+const resetSeq = termenv.CSI + termenv.ResetSeq + "m"
 
 func brighten(color termenv.Color) termenv.Color {
-	if ansi, ok := color.(termenv.ANSIColor); ok {
+	if ansi, ok := color.(termenv.ANSIColor); ok && ansi < termenv.ANSIBrightBlack {
 		return ansi + termenv.ANSIBrightBlack
 	} else {
 		return color
@@ -56,7 +58,6 @@ func (f Format) Render() string {
 		f.Fg = brighten(f.Fg)
 	case Faint:
 		styles = append(styles, termenv.FaintSeq)
-		f.Bg = brighten(f.Bg)
 	}
 
 	if f.Fg != nil {
@@ -96,7 +97,7 @@ func (f Format) Render() string {
 
 	var res string
 	if f.Reset || f == (Format{}) {
-		res = reset
+		res = resetSeq
 	}
 	if len(styles) > 0 {
 		res += fmt.Sprintf("%s%sm", termenv.CSI, strings.Join(styles, ";"))

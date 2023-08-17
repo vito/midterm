@@ -15,9 +15,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"runtime/debug"
 	"sync"
+	"time"
 )
 
 // VT100 represents a simplified, raw VT100 terminal.
@@ -48,19 +48,30 @@ type VT100 struct {
 	// This value is set by the CSI ; Ps ; Ps r command.
 	ScrollRegion *ScrollRegion
 
-	// PagerMode optimizes the rendering of the terminal for read-only log
-	// viewing. It will not display the cursor location, and it will avoid
-	// rendering a final blank line.
-	PagerMode bool
+	// CursorVisible indicates whether the cursor is visible.
+	//
+	// This value is set by CSI ? 25 h and unset by CSI ? 25 l.
+	CursorVisible bool
 
-	// DebugLogs is a location to print ANSI parse errors and other debugging
-	// information.
-	DebugLogs io.Writer
+	// CursorBlinking indicates whether the cursor is blinking, and the start of
+	// the blinking interval.
+	CursorBlinkEpoch *time.Time
 
 	// savedCursor is the state of the cursor last time save() was called.
 	savedCursor Cursor
 
+	// Response is the writer to which we send responses to CSI/OSC queries.
+	Response io.Writer
+
+	// ForwardRequests is the writer to which we send requests to forward
+	// to the terminal.
+	ForwardRequests io.Writer
+
+	// unparsed is the bytes that we have not yet parsed. It typically contains a
+	// partial escape sequence.
 	unparsed []byte
+
+	onResize OnResizeFunc
 
 	// maxY is the maximum vertical offset that a character was printed
 	maxY int
@@ -129,8 +140,21 @@ func (v *VT100) UsedHeight() int {
 
 func (v *VT100) Resize(h, w int) {
 	v.mut.Lock()
-	defer v.mut.Unlock()
 	v.resize(h, w)
+	f := v.onResize
+	v.mut.Unlock()
+	if f != nil {
+		f(h, w)
+	}
+}
+
+type OnResizeFunc func(rows, cols int)
+
+func (v *VT100) OnResize(f OnResizeFunc) {
+	f(v.Height, v.Width)
+	v.mut.Lock()
+	defer v.mut.Unlock()
+	v.onResize = f
 }
 
 func (v *VT100) resize(h, w int) {
@@ -183,8 +207,8 @@ func (v *VT100) resize(h, w int) {
 func (v *VT100) Write(dt []byte) (int, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
-			log.Default().Writer().Write(debug.Stack())
+			dbg.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
+			dbg.Writer().Write(debug.Stack())
 		}
 	}()
 
@@ -201,7 +225,7 @@ func (v *VT100) Write(dt []byte) (int, error) {
 	for buf.Len() > 0 {
 		cmd, unparsed, err := Decode(buf)
 		if err != nil {
-			log.Printf("!!! LEAVING UNPARSED: %q", string(unparsed))
+			dbg.Printf("LEAVING UNPARSED: %q", string(unparsed))
 			v.unparsed = []byte(string(unparsed))
 			break
 		}
@@ -215,9 +239,7 @@ func (v *VT100) Write(dt []byte) (int, error) {
 		v.resizeXIfNeeded()
 
 		if err := cmd.display(v); err != nil {
-			if v.DebugLogs != nil {
-				fmt.Fprintln(v.DebugLogs, err)
-			}
+			dbg.Printf("DISPLAY ERR FOR %s: %v", cmd, err)
 		}
 	}
 
@@ -321,7 +343,7 @@ func (v *VT100) advance() {
 
 func (v *VT100) resizeXIfNeeded() {
 	if v.AutoResizeX && v.Cursor.X+1 >= v.Width {
-		log.Println("RESIZING X NEEDED", v.Cursor.Y, v.Height)
+		dbg.Println("RESIZING X NEEDED", v.Cursor.Y, v.Height)
 		v.resize(v.Height, v.Cursor.X+1)
 	}
 }
@@ -329,10 +351,10 @@ func (v *VT100) resizeXIfNeeded() {
 func (v *VT100) scrollOrResizeYIfNeeded() {
 	if v.Cursor.Y >= v.Height {
 		if v.AutoResizeY {
-			log.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
+			dbg.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
 			v.resize(v.Cursor.Y+1, v.Width)
 		} else {
-			log.Println("SCROLLING NEEDED", v.Cursor.Y, v.Height)
+			dbg.Println("SCROLLING NEEDED", v.Cursor.Y, v.Height)
 			v.scrollOne()
 		}
 	}
@@ -560,8 +582,14 @@ func (v *VT100) eraseLines(d eraseDirection) {
 	switch d {
 	case eraseBack:
 		v.eraseRegion(0, 0, y, x)
+		if y > 0 {
+			v.eraseRegion(0, 0, y-1, v.Width-1)
+		}
 	case eraseForward:
 		v.eraseRegion(y, x, v.Height-1, v.Width-1)
+		if y < v.Height-1 {
+			v.eraseRegion(y+1, 0, v.Height-1, v.Width-1)
+		}
 	case eraseAll:
 		v.eraseRegion(0, 0, v.Height-1, v.Width-1)
 	}
@@ -607,6 +635,26 @@ func (v *VT100) backspace() {
 			v.Cursor.Y--
 			v.Cursor.X = v.Width - 1
 		}
+	}
+}
+
+func (v *VT100) moveDown() {
+	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.End {
+		// if we're at the bottom of the scroll region, scroll it instead of
+		// moving the cursor
+		v.scrollUpN(1)
+	} else {
+		v.Cursor.Y++
+	}
+}
+
+func (v *VT100) moveUp() {
+	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.Start {
+		// if we're at the bottom of the scroll region, scroll it instead of
+		// moving the cursor
+		v.scrollDownN(1)
+	} else {
+		v.Cursor.Y--
 	}
 }
 

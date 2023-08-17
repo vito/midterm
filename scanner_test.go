@@ -19,19 +19,19 @@ nextCase:
 			runeCommand('Ü'),
 		}},
 		{"\u001babc", []Command{
-			escapeCommand{'a', ""},
+			csiCommand{'a', ""},
 			runeCommand('b'),
 			runeCommand('c'),
 		}},
-		{"\u001b[123;31d", []Command{escapeCommand{'d', "123;31"}}},
-		{"\u009b123;31d", []Command{escapeCommand{'d', "123;31"}}},
+		{"\u001b[123;31d", []Command{csiCommand{'d', "123;31"}}},
+		{"\u009b123;31d", []Command{csiCommand{'d', "123;31"}}},
 		{"\u001b123", []Command{
-			escapeCommand{'1', ""},
+			csiCommand{'1', ""},
 			runeCommand('2'),
 			runeCommand('3'),
 		}},
 		{"\u001b[12;\"asd\"s", []Command{
-			escapeCommand{'s', `12;"asd"`},
+			csiCommand{'s', `12;"asd"`},
 		}},
 	} {
 		s := strings.NewReader(testCase.in)
