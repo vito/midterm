@@ -481,7 +481,7 @@ const (
 	carriageReturn controlCommand = '\r'
 )
 
-const tabWidth = 4
+const tabWidth = 8
 
 func (c controlCommand) String() string {
 	return fmt.Sprintf("%T(%q)", c, string(c))
