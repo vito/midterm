@@ -491,6 +491,33 @@ func deleteCharacters[T any](arr [][]T, row, col, ps int, empty T) {
 	}
 }
 
+func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
+	if row < 0 || row >= len(arr) || col < 0 || col > len(arr[row]) || ps <= 0 {
+		return // Return the original array if the inputs are out of bounds or invalid
+	}
+
+	// Create a slice with ps empty elements
+	empties := make([]T, ps)
+	for i := range empties {
+		empties[i] = empty
+	}
+
+	// Insert the empties at the specified row and column
+	inserted := append(arr[row][:col], append(empties, arr[row][col:]...)...)
+
+	// clip the row to the length of the original array
+	//
+	// NB: we don't actually need to handle wrapping. sh for example handles that
+	// automatically, by manually writing the next row and moving the cursor back
+	// up
+	arr[row] = inserted[:len(arr[row])]
+}
+
+func (v *VT100) insertCharacters(n int) {
+	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	insertEmpties(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})
+}
+
 func (v *VT100) deleteCharacters(n int) {
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	deleteCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})

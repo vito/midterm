@@ -298,8 +298,18 @@ var (
 
 			return nil
 		},
-		// 'c': noop, // TODO Device Attributes
 		// 'q': noop, // TODO Set Cursor Style
+		'@': func(v *VT100, args []int) error {
+			dbg.Println("INSERTING", args)
+			n := 1
+			if len(args) >= 1 {
+				n = args[0]
+			}
+
+			v.insertCharacters(n)
+
+			return nil
+		},
 	}
 )
 
