@@ -131,14 +131,10 @@ var (
 			}
 			switch args[0] {
 			case "52":
-				// forward along
-				if strings.HasSuffix(arg, "?") {
-					dbg.Println("FORWARDING OSC 52 REQUEST", arg)
-					fmt.Fprintf(v.ForwardRequests, "\x1b]%s\x07", args)
-				} else {
-					dbg.Println("FORWARDING OSC 52 RESPONSE", arg)
-					fmt.Fprintf(v.ForwardResponses, "\x1b]%s\x07", args)
-				}
+				dbg.Println("FORWARDING OSC 52 REQUEST", arg)
+				fmt.Fprintf(v.ForwardRequests, "\x1b]%s\x07", arg)
+			default:
+				dbg.Println("IGNORING UNKNOWN OSC", arg)
 			}
 			return nil
 		},
