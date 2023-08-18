@@ -40,6 +40,7 @@ func main() {
 
 func replay(out string) error {
 	vt := vt100.NewVT100(rows, cols)
+	vt.CursorVisible = true
 
 	content, err := os.ReadFile(out)
 	if err != nil {
@@ -105,8 +106,9 @@ func record(out string) error {
 	defer func() { _ = ptmx.Close() }() // Best effort.
 
 	vt := vt100.NewVT100(rows, cols)
+	vt.CursorVisible = true
 	vt.ForwardResponses = ptmx
-	vt.ForwardRequests = os.Stdin
+	vt.ForwardRequests = os.Stdout
 
 	prog := tea.NewProgram(&vtModel{vt}, tea.WithInput(nil))
 
