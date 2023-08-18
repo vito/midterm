@@ -205,6 +205,10 @@ func (v *VT100) resize(h, w int) {
 }
 
 func (v *VT100) Write(dt []byte) (int, error) {
+	if trace != nil {
+		trace.Write(dt)
+	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			dbg.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
