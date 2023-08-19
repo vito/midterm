@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/creack/pty v1.1.18
 	github.com/muesli/termenv v0.15.1
+	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/term v0.6.0
 )
@@ -23,6 +24,7 @@ require (
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
+	github.com/sergi/go-diff v1.0.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.3.8 // indirect

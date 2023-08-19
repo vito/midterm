@@ -19,13 +19,13 @@ const rows = 24
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: vt100 <record|replay> <output>")
+		fmt.Println("Usage: vt100 <record|replay> <output> [cmd...]")
 		os.Exit(1)
 	}
-	cmd, out := os.Args[1], os.Args[2]
-	switch cmd {
+	sub, out, cmd := os.Args[1], os.Args[2], os.Args[3:]
+	switch sub {
 	case "record":
-		if err := record(out); err != nil {
+		if err := record(out, cmd); err != nil {
 			log.Fatal(err)
 		}
 	case "replay":
@@ -38,57 +38,17 @@ func main() {
 	}
 }
 
-func replay(out string) error {
-	vt := vt100.NewVT100(rows, cols)
-	vt.CursorVisible = true
-
-	content, err := os.ReadFile(out)
-	if err != nil {
-		return err
-	}
-
-	// vt.Write(content)
-	fields := splitBefore(content, []byte("\x1b"))
-
-	for _, f := range fields {
-		before := new(bytes.Buffer)
-		renderVt(before, vt)
-		vt.Write(f)
-		after := new(bytes.Buffer)
-		renderVt(after, vt)
-		fmt.Printf("------------------------------------------------------------------------------------------- %q\n", f)
-		renderVt(os.Stdout, vt)
-		// if regexp.MustCompile("\x1b" + `\[.*[TS]`).Match(after.Bytes()) {
-		// 	fmt.Print(before.String())
-		// 	fmt.Printf("Wrote %q\n", string(f))
-		// 	fmt.Print(after.String())
-		// }
-	}
-
-	renderVt(os.Stdout, vt)
-
-	return nil
-}
-
-func splitBefore(data []byte, delim []byte) [][]byte {
-	if len(delim) == 0 {
-		return [][]byte{data}
-	}
-	var result [][]byte
-	start := 0
-	for i := 0; i+len(delim) <= len(data); i++ {
-		if bytes.Equal(data[i:i+len(delim)], delim) {
-			result = append(result, data[start:i])
-			start = i
+func record(out string, cmd []string) error {
+	if len(cmd) == 0 {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "sh"
 		}
+		cmd = []string{shell}
 	}
-	result = append(result, data[start:])
-	return result
-}
 
-func record(out string) error {
 	// Create arbitrary command.
-	c := exec.Command("bash")
+	c := exec.Command(cmd[0], cmd[1:]...)
 
 	// Set stdin in raw mode.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -143,6 +103,38 @@ func record(out string) error {
 	return nil
 }
 
+func replay(out string) error {
+	vt := vt100.NewVT100(rows, cols)
+	vt.CursorVisible = true
+
+	content, err := os.ReadFile(out)
+	if err != nil {
+		return err
+	}
+
+	// vt.Write(content)
+	fields := splitBefore(content, []byte("\x1b"))
+
+	for _, f := range fields {
+		before := new(bytes.Buffer)
+		renderVt(before, vt)
+		vt.Write(f)
+		after := new(bytes.Buffer)
+		renderVt(after, vt)
+		fmt.Printf("------------------------------------------------------------------------------------------- %q\n", f)
+		renderVt(os.Stdout, vt)
+		// if regexp.MustCompile("\x1b" + `\[.*[TS]`).Match(after.Bytes()) {
+		// 	fmt.Print(before.String())
+		// 	fmt.Printf("Wrote %q\n", string(f))
+		// 	fmt.Print(after.String())
+		// }
+	}
+
+	renderVt(os.Stdout, vt)
+
+	return nil
+}
+
 type vtModel struct {
 	vt *vt100.VT100
 }
@@ -175,4 +167,20 @@ func renderVt(w io.Writer, vt *vt100.VT100) {
 	for i := 0; i < vt.Height; i++ {
 		vt.RenderLine(w, i)
 	}
+}
+
+func splitBefore(data []byte, delim []byte) [][]byte {
+	if len(delim) == 0 {
+		return [][]byte{data}
+	}
+	var result [][]byte
+	start := 0
+	for i := 0; i+len(delim) <= len(data); i++ {
+		if bytes.Equal(data[i:i+len(delim)], delim) {
+			result = append(result, data[start:i])
+			start = i
+		}
+	}
+	result = append(result, data[start:])
+	return result
 }

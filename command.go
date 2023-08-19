@@ -221,10 +221,10 @@ var (
 		'h': setMode,
 		'l': unsetMode,
 		's': save,
-		'u': unsave,  // NB: vim prints \e[?u on start - a bit of a mystery
-		'q': noopStr, // Set Cursor Style; vim prints \e[2 q which is another mystery
-		// NB: 'm' usually has int args, except for CSI > Pp m and CSI ? Pp m
-		'm': updateAttributes,
+		'u': unsave,           // NB: vim prints \e[?u on start - a bit of a mystery
+		'q': noopStr,          // Set Cursor Style; vim prints \e[2 q which is another mystery
+		'm': updateAttributes, // NB: 'm' usually has int args, except for CSI > Pp m and CSI ? Pp m
+		'r': setScrollRegion,
 	}
 
 	csiIntHandlers = map[rune]intHandler{
@@ -248,25 +248,6 @@ var (
 		'K': eraseColumns,
 		'f': home,
 		't': noopInt, // Window manipulation
-		'r': func(v *VT100, args []int) error {
-			switch len(args) {
-			case 0:
-				v.ScrollRegion = nil
-			case 1: // TODO: handle \e[;10r and \e[10;r
-			case 2:
-				start, end := args[0]-1, args[1]-1
-				if start == 0 && end == v.Height-1 {
-					// equivalent to just resetting
-					v.ScrollRegion = nil
-				} else {
-					v.ScrollRegion = &ScrollRegion{
-						Start: start,
-						End:   end,
-					}
-				}
-			}
-			return nil
-		},
 		'd': func(v *VT100, args []int) error {
 			y := 1
 			if len(args) >= 1 {
@@ -380,6 +361,51 @@ var (
 		},
 	}
 )
+
+func setScrollRegion(v *VT100, args []string) error {
+	switch len(args) {
+	case 0:
+		dbg.Println("RESETTING SCROLL REGION", args)
+		v.ScrollRegion = nil
+	case 1:
+		dbg.Println("UNKNOWN CSI r", args)
+	case 2:
+		dbg.Println("SETTING SCROLL REGION r", args)
+
+		var start, end int
+
+		if args[0] == "" {
+			start = 0
+		} else {
+			line, err := strconv.Atoi(args[0])
+			if err != nil {
+				return err
+			}
+			start = line - 1
+		}
+
+		if args[1] == "" {
+			end = v.Height - 1
+		} else {
+			line, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			end = line - 1
+		}
+
+		if start == 0 && end == v.Height-1 {
+			// equivalent to just resetting
+			v.ScrollRegion = nil
+		} else {
+			v.ScrollRegion = &ScrollRegion{
+				Start: start,
+				End:   end,
+			}
+		}
+	}
+	return nil
+}
 
 type noopCommand struct{}
 
