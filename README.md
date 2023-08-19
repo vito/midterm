@@ -1,30 +1,14 @@
-#VT100
+# VT102
 
-[![GoDoc](https://godoc.org/github.com/vito/vt100?status.svg)](https://godoc.org/github.com/vito/vt100)
+[![GoDoc](https://godoc.org/github.com/vito/vt102?status.svg)](https://godoc.org/github.com/vito/vt102)
 
-This project was based on [jaguilar/vt100](https://github.com/jaguilar/vt100)
+> Based on [tonistiigi/vt100] which was was based on [jaguilar/vt100](https://github.com/jaguilar/vt100).
 
-This is a vt100 screen reader. It seems to do a pretty
-decent job of parsing the nethack input stream, which
-is all I want it for anyway.
+A Go virtual terminal library. Used by [Progrock] and [Dagger]. Intended to support full blown TUI applications like `vim` and `htop`. (This README was bootstrapped in `vim`. There were many bugs.)
 
-Here is a screenshot of the HTML-formatted screen data:
+There is no GUI; it's just an in-memory data structure. If you want to wrap it in a GUI, feel free! Right now it's used for rendering terminals embedded in other TUIs (Progrock), and for rendering terminal output in documentation.
 
-![](_readme/screencap.png)
+Performance _is_ a priority but has not been a priority yet.
 
-The features we currently support:
-
-* Cursor movement
-* Erasing
-* Many of the text properties -- underline, inverse, blink, etc.
-* Sixteen colors
-* Cursor saving and unsaving
-* UTF-8
-* Scrolling
-
-Not currently supported (and no plans to support):
-
-* Prompts
-* Other cooked mode features
-
-The API is not stable! This is a v0 package.
+[Progrock]: https://github.com/vito/progrock
+[Dagger]: https://github.com/dagger/dagger.
