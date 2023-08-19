@@ -31,6 +31,17 @@ type VT100 struct {
 	// Format is the display properties of each cell.
 	Format [][]Format
 
+	// IsAlt indicates whether the alt screen is active.
+	AltScreen bool
+
+	// InactiveFormat stores the content for the inactive screen (alt if main
+	// active, main if alt active).
+	InactiveContent [][]rune
+
+	// InactiveFormat stores the display properties for the inactive screen (alt
+	// if main active, main if alt active).
+	InactiveFormat [][]Format
+
 	// Cursor is the current state of the cursor.
 	Cursor Cursor
 

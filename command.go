@@ -44,65 +44,120 @@ func (c runeCommand) display(v *VT100) error {
 	return nil
 }
 
-func setMode(v *VT100, mode []string) error {
-	if len(mode) == 0 {
+func setMode(v *VT100, args []string) error {
+	if len(args) == 0 {
 		dbg.Println("EMPTY SET MODE")
 		return nil
 	}
-	switch mode[0] {
+
+	mode := args[0]
+
+	var forward bool
+	switch mode {
 	case "4":
 		dbg.Println("SET RESET MODE")
 	case "?1":
 		dbg.Println("SET APP CURSOR MODE")
-		if v.ForwardRequests != nil {
-			fmt.Fprintf(v.ForwardRequests, "\x1b[?1h")
-		}
+		forward = true
 	case "?7":
 		dbg.Println("SET WRAP MODE")
 	case "?12":
+		dbg.Println("SET BLINK CURSOR MODE")
 		epoch := time.Now()
 		v.CursorBlinkEpoch = &epoch
 	case "?25":
+		dbg.Println("SET CURSOR VISIBLE")
 		v.CursorVisible = true
-	case "?1000":
-		dbg.Println("SET MOUSE TRACKING MODE")
+	case "?1000", // basic
+		"?1002", // drag
+		"?1003", // all mouse controls
+		"?1006": // extended mouse coords
+		dbg.Println("SET MOUSE TRACKING MODE", mode)
+		forward = true
+	case "?1004": // window focus
+		dbg.Println("SET WINDOW FOCUS TRACKING MODE", mode)
+		forward = true
 	case "?1049":
 		dbg.Println("SET ALT SCREEN")
+		if v.AltScreen {
+			dbg.Println("ALREADY ALT")
+		} else {
+			dbg.Println("SWITCHING TO ALT")
+			swapAlt(v)
+			if v.Content == nil || v.Format == nil {
+				dbg.Println("ALLOCATING ALT SCREEN")
+				v.Reset() // allocate alt screen for the first time
+			}
+		}
 	case "?2004":
 		dbg.Println("SET BRACKETED PASTE")
+		forward = true
 	default:
 		dbg.Println("SET UNKNOWN MODE", mode)
 	}
+
+	if forward && v.ForwardRequests != nil {
+		fmt.Fprintf(v.ForwardRequests, "\x1b[%sh", mode)
+	}
+
 	return nil
 }
 
-func unsetMode(v *VT100, mode []string) error {
-	if len(mode) == 0 {
+func swapAlt(v *VT100) {
+	v.AltScreen = !v.AltScreen
+	v.InactiveContent, v.Content = v.Content, v.InactiveContent
+	v.InactiveFormat, v.Format = v.Format, v.InactiveFormat
+}
+
+func unsetMode(v *VT100, args []string) error {
+	if len(args) == 0 {
 		dbg.Println("EMPTY UNSET MODE")
 		return nil
 	}
-	switch mode[0] {
+	mode := args[0]
+	var forward bool
+	switch mode {
 	case "4":
 		dbg.Println("UNSET RESET MODE")
 	case "?1":
-		if v.ForwardRequests != nil {
-			fmt.Fprintf(v.ForwardRequests, "\x1b[?1l")
-		}
+		dbg.Println("UNSET APP CURSOR MODE")
+		forward = true
 	case "?7":
 		dbg.Println("UNSET WRAP MODE")
 	case "?12":
+		dbg.Println("UNSET BLINK CURSOR MODE")
 		v.CursorBlinkEpoch = nil
 	case "?25":
+		dbg.Println("UNSET CURSOR VISIBLE")
 		v.CursorVisible = false
-	case "?1000":
-		dbg.Println("UNSET MOUSE TRACKING MODE")
+	case "?1000", // basic
+		"?1002", // drag
+		"?1003", // all mouse controls
+		"?1006": // extended mouse coords
+		dbg.Println("UNSET MOUSE TRACKING MODE", mode)
+		forward = true
+	case "?1004": // window focus
+		dbg.Println("UNSET WINDOW FOCUS TRACKING MODE", mode)
+		forward = true
 	case "?1049":
 		dbg.Println("UNSET ALT SCREEN")
+		if !v.AltScreen {
+			dbg.Println("ALREADY NOT ALT")
+		} else {
+			dbg.Println("RESTORING MAIN SCREEN")
+			swapAlt(v)
+		}
 	case "?2004":
 		dbg.Println("UNSET BRACKETED PASTE")
+		forward = true
 	default:
 		dbg.Println("UNSET UNKNOWN MODE", mode)
 	}
+
+	if forward && v.ForwardRequests != nil {
+		fmt.Fprintf(v.ForwardRequests, "\x1b[%sl", mode)
+	}
+
 	return nil
 }
 
@@ -133,6 +188,8 @@ var (
 			case "52":
 				dbg.Println("FORWARDING OSC 52 REQUEST", arg)
 				fmt.Fprintf(v.ForwardRequests, "\x1b]%s\x07", arg)
+			case "112":
+				dbg.Println("IGNORING OSC RESET CURSOR COLOR")
 			default:
 				dbg.Println("IGNORING UNKNOWN OSC", arg)
 			}
@@ -163,11 +220,24 @@ var (
 	csiStrHandlers = map[rune]strHandler{
 		'h': setMode,
 		'l': unsetMode,
+		's': save,
+		'u': unsave,  // NB: vim prints \e[?u on start - a bit of a mystery
+		'q': noopStr, // Set Cursor Style; vim prints \e[2 q which is another mystery
+		// NB: 'm' usually has int args, except for CSI > Pp m and CSI ? Pp m
+		'm': updateAttributes,
 	}
 
 	csiIntHandlers = map[rune]intHandler{
-		's': save,
-		'u': unsave,
+		'c': func(v *VT100, args []int) error { // Request terminal attributes
+			dbg.Println("SENDING DEVICE ATTRIBUTES", args)
+			if v.ForwardResponses == nil {
+				dbg.Println("NO RESPONSE CHANNEL", args)
+				return nil
+			}
+			dbg.Println("RESPONDING VT102")
+			fmt.Fprint(v.ForwardResponses, termenv.CSI+"?6c")
+			return nil
+		},
 		'A': relativeMove(-1, 0),
 		'B': relativeMove(1, 0),
 		'C': relativeMove(0, 1),
@@ -177,7 +247,6 @@ var (
 		'J': eraseLines,
 		'K': eraseColumns,
 		'f': home,
-		'm': updateAttributes,
 		't': noopInt, // Window manipulation
 		'r': func(v *VT100, args []int) error {
 			switch len(args) {
@@ -205,7 +274,7 @@ var (
 			}
 
 			// NB: home is 1-indexed, hence the +1.
-			return home(v, []int{y, v.Cursor.X - 1})
+			return home(v, []int{y, v.Cursor.X + 1})
 		},
 		// scroll down N times
 		'T': func(v *VT100, args []int) error {
@@ -298,7 +367,6 @@ var (
 
 			return nil
 		},
-		// 'q': noop, // TODO Set Cursor Style
 		'@': func(v *VT100, args []int) error {
 			dbg.Println("INSERTING", args)
 			n := 1
@@ -335,28 +403,39 @@ func noopEsc(v *VT100, arg string) error {
 	return nil
 }
 
-func save(v *VT100, _ []int) error {
+func save(v *VT100, _ []string) error {
 	v.save()
 	return nil
 }
 
-func unsave(v *VT100, _ []int) error {
+func unsave(v *VT100, _ []string) error {
 	v.unsave()
 	return nil
 }
 
 // A command to update the attributes of the cursor based on the arg list.
-func updateAttributes(v *VT100, args []int) error {
+func updateAttributes(v *VT100, args []string) error {
 	f := &v.Cursor.F
 	if len(args) == 0 {
 		*f = Format{Reset: true}
 		return nil
 	}
 
+	// forward modifier key requests, which are confusingly _also_ the 'm' CSI
+	// command, just with a different prefix. c'mon man
+	if strings.HasPrefix(args[0], ">") || strings.HasPrefix(args[0], "?") {
+		fmt.Fprintf(v.ForwardRequests, "%s%sm", termenv.CSI, strings.Join(args, ";"))
+		return nil
+	}
+
 	var unsupported []int
 	i := 0
 	for i < len(args) {
-		x := args[i]
+		x, err := strconv.Atoi(args[i])
+		if err != nil {
+			return err
+		}
+
 		i++
 
 		switch x {
@@ -405,7 +484,11 @@ func updateAttributes(v *VT100, args []int) error {
 				return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
 			}
 
-			type_ := args[i]
+			type_, err := strconv.Atoi(args[i])
+			if err != nil {
+				return err
+			}
+
 			i++
 
 			var color termenv.Color
@@ -415,7 +498,11 @@ func updateAttributes(v *VT100, args []int) error {
 					return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
 				}
 
-				num := args[i]
+				num, err := strconv.Atoi(args[i])
+				if err != nil {
+					return err
+				}
+
 				i++
 				switch {
 				case num < 16:
@@ -428,11 +515,20 @@ func updateAttributes(v *VT100, args []int) error {
 					return fmt.Errorf("malformed 8- or 24-bit flags: %q", args)
 				}
 
-				r := args[i]
+				r, err := strconv.Atoi(args[i])
+				if err != nil {
+					return err
+				}
 				i++
-				g := args[i]
+				g, err := strconv.Atoi(args[i])
+				if err != nil {
+					return err
+				}
 				i++
-				b := args[i]
+				b, err := strconv.Atoi(args[i])
+				if err != nil {
+					return err
+				}
 				i++
 
 				color = termenv.RGBColor(fmt.Sprintf("#%02x%02x%02x", r, g, b))
@@ -592,7 +688,7 @@ func (c csiCommand) err(e error) error {
 
 func (c csiCommand) argInts() ([]int, error) {
 	if len(c.args) == 0 {
-		return make([]int, 0), nil
+		return []int{}, nil
 	}
 	args := strings.Split(c.args, ";")
 	out := make([]int, len(args))
@@ -607,6 +703,9 @@ func (c csiCommand) argInts() ([]int, error) {
 }
 
 func (c csiCommand) argStrs() []string {
+	if len(c.args) == 0 {
+		return []string{}
+	}
 	return strings.Split(c.args, ";")
 }
 
