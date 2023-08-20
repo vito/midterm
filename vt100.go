@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -215,22 +216,23 @@ func (v *VT100) resize(h, w int) {
 	}
 }
 
-func (v *VT100) Write(dt []byte) (int, error) {
+func (v *VT100) Write(dt []byte) (n int, rerr error) {
+	n = len(dt)
+
 	if trace != nil {
 		trace.Write(dt)
 	}
 
 	defer func() {
 		if err := recover(); err != nil {
-			dbg.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
-			dbg.Writer().Write(debug.Stack())
+			log.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
+			log.Writer().Write(debug.Stack())
 		}
 	}()
 
 	v.mut.Lock()
 	defer v.mut.Unlock()
 
-	n := len(dt)
 	if len(v.unparsed) > 0 {
 		dt = append(v.unparsed, dt...)
 		v.unparsed = nil

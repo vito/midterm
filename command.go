@@ -450,7 +450,9 @@ func updateAttributes(v *VT100, args []string) error {
 	// forward modifier key requests, which are confusingly _also_ the 'm' CSI
 	// command, just with a different prefix. c'mon man
 	if strings.HasPrefix(args[0], ">") || strings.HasPrefix(args[0], "?") {
-		fmt.Fprintf(v.ForwardRequests, "%s%sm", termenv.CSI, strings.Join(args, ";"))
+		if v.ForwardRequests != nil {
+			fmt.Fprintf(v.ForwardRequests, "%s%sm", termenv.CSI, strings.Join(args, ";"))
+		}
 		return nil
 	}
 
