@@ -43,6 +43,8 @@ func goldenTest(t *testing.T, name string) {
 
 	vt := vt100.NewVT100(24, 120)
 	err = eachNthFrame(buf, skipFrames, func(frame int, segment []byte) error {
+		t.Logf("frame %d", frame)
+
 		n, err := vt.Write(segment)
 		require.NoError(t, err)
 		require.Equal(t, len(segment), n)
