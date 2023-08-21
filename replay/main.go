@@ -10,7 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/creack/pty"
-	"github.com/vito/vt100"
+	"github.com/vito/midterm"
 	"golang.org/x/term"
 )
 
@@ -19,7 +19,7 @@ const rows = 24
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: vt100 <record|replay> <output> [cmd...]")
+		fmt.Printf("Usage: %s <record|replay> <output> [cmd...]\n", os.Args[0])
 		os.Exit(1)
 	}
 	sub, out, cmd := os.Args[1], os.Args[2], os.Args[3:]
@@ -33,7 +33,7 @@ func main() {
 			log.Fatal(err)
 		}
 	default:
-		fmt.Println("Usage: vt100 <record|replay> <output>")
+		fmt.Printf("Usage: %s <record|replay> <output>\n", os.Args[0])
 		os.Exit(1)
 	}
 }
@@ -65,7 +65,7 @@ func record(out string, cmd []string) error {
 	// Make sure to close the pty at the end.
 	defer func() { _ = ptmx.Close() }() // Best effort.
 
-	vt := vt100.NewVT100(rows, cols)
+	vt := midterm.NewTerminal(rows, cols)
 	vt.CursorVisible = true
 	vt.ForwardResponses = ptmx
 	vt.ForwardRequests = os.Stdout
@@ -104,7 +104,7 @@ func record(out string, cmd []string) error {
 }
 
 func replay(out string) error {
-	vt := vt100.NewVT100(rows, cols)
+	vt := midterm.NewTerminal(rows, cols)
 	vt.CursorVisible = true
 
 	content, err := os.ReadFile(out)
@@ -136,7 +136,7 @@ func replay(out string) error {
 }
 
 type vtModel struct {
-	vt *vt100.VT100
+	vt *midterm.Terminal
 }
 
 func (m vtModel) Init() tea.Cmd {
@@ -163,7 +163,7 @@ func (m vtModel) View() string {
 	return buf.String()
 }
 
-func renderVt(w io.Writer, vt *vt100.VT100) {
+func renderVt(w io.Writer, vt *midterm.Terminal) {
 	for i := 0; i < vt.Height; i++ {
 		vt.RenderLine(w, i)
 	}

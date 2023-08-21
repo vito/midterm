@@ -1,15 +1,4 @@
-// package vt100 implements a quick-and-dirty programmable ANSI terminal emulator.
-//
-// You could, for example, use it to run a program like nethack that expects
-// a terminal as a subprocess. It tracks the position of the cursor,
-// colors, and various other aspects of the terminal's state, and
-// allows you to inspect them.
-//
-// We do very much mean the dirty part. It's not that we think it might have
-// bugs. It's that we're SURE it does. Currently, we only handle raw mode, with no
-// cooked mode features like scrolling. We also misinterpret some of the control
-// codes, which may or may not matter for your purpose.
-package vt100
+package midterm
 
 import (
 	"bytes"
@@ -21,8 +10,10 @@ import (
 	"time"
 )
 
-// VT100 represents a simplified, raw VT100 terminal.
-type VT100 struct {
+// Terminal represents a raw terminal capable of handling VT100 and VT102 ANSI
+// escape sequences, some of which are handled by forwarding them to a local or
+// remote session (e.g. OSC52 copy/paste).
+type Terminal struct {
 	// Height and Width are the dimensions of the terminal.
 	Height, Width int
 
@@ -69,8 +60,8 @@ type VT100 struct {
 	// the blinking interval.
 	CursorBlinkEpoch *time.Time
 
-	// savedCursor is the state of the cursor last time save() was called.
-	savedCursor Cursor
+	// SavedCursor is the state of the cursor last time save() was called.
+	SavedCursor Cursor
 
 	// ForwardResponses is the writer to which we send responses to CSI/OSC queries.
 	ForwardResponses io.Writer
@@ -83,6 +74,7 @@ type VT100 struct {
 	// partial escape sequence.
 	unparsed []byte
 
+	// onResize is a hook called every time the terminal resizes.
 	onResize OnResizeFunc
 
 	// maxY is the maximum vertical offset that a character was printed
@@ -107,17 +99,17 @@ type ScrollRegion struct {
 	Start, End int
 }
 
-// NewVT100 creates a new VT100 object with the specified dimensions. y and x
+// NewTerminal creates a new VT100 object with the specified dimensions. y and x
 // must both be greater than zero.
 //
 // Each cell is set to contain a ' ' rune, and all formats are left as the
 // default.
-func NewVT100(rows, cols int) *VT100 {
+func NewTerminal(rows, cols int) *Terminal {
 	if rows <= 0 || cols <= 0 {
 		panic(fmt.Errorf("invalid dim (%d, %d)", rows, cols))
 	}
 
-	v := &VT100{
+	v := &Terminal{
 		Height: rows,
 		Width:  cols,
 
@@ -130,7 +122,7 @@ func NewVT100(rows, cols int) *VT100 {
 	return v
 }
 
-func (v *VT100) Reset() {
+func (v *Terminal) Reset() {
 	v.Content = make([][]rune, v.Height)
 	v.Format = make([][]Format, v.Height)
 	for row := 0; row < v.Height; row++ {
@@ -144,13 +136,13 @@ func (v *VT100) Reset() {
 	v.Cursor.Y = 0
 }
 
-func (v *VT100) UsedHeight() int {
+func (v *Terminal) UsedHeight() int {
 	v.mut.Lock()
 	defer v.mut.Unlock()
 	return v.maxY + 1
 }
 
-func (v *VT100) Resize(h, w int) {
+func (v *Terminal) Resize(h, w int) {
 	v.mut.Lock()
 	v.resize(h, w)
 	f := v.onResize
@@ -162,14 +154,14 @@ func (v *VT100) Resize(h, w int) {
 
 type OnResizeFunc func(rows, cols int)
 
-func (v *VT100) OnResize(f OnResizeFunc) {
+func (v *Terminal) OnResize(f OnResizeFunc) {
 	f(v.Height, v.Width)
 	v.mut.Lock()
 	defer v.mut.Unlock()
 	v.onResize = f
 }
 
-func (v *VT100) resize(h, w int) {
+func (v *Terminal) resize(h, w int) {
 	if h > v.Height {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
@@ -216,7 +208,7 @@ func (v *VT100) resize(h, w int) {
 	}
 }
 
-func (v *VT100) Write(dt []byte) (n int, rerr error) {
+func (v *Terminal) Write(dt []byte) (n int, rerr error) {
 	n = len(dt)
 
 	if trace != nil {
@@ -268,75 +260,15 @@ func (v *VT100) Write(dt []byte) (n int, rerr error) {
 //
 // One special kind of error that this can return is an UnsupportedError. It's
 // probably best to check for these and skip, because they are likely recoverable.
-// Support errors are exported as expvars, so it is possibly not necessary to log
-// them. If you want to check what's failed, start a debug http server and examine
-// the vt100-unsupported-commands field in /debug/vars.
-func (v *VT100) Process(c Command) error {
+func (v *Terminal) Process(c Command) error {
 	v.mut.Lock()
 	defer v.mut.Unlock()
 
 	return c.display(v)
 }
 
-// HTML renders v as an HTML fragment. One idea for how to use this is to debug
-// the current state of the screen reader.
-func (v *VT100) HTML() string {
-	v.mut.Lock()
-	defer v.mut.Unlock()
-
-	var buf bytes.Buffer
-	buf.WriteString(`<pre style="color:white;background-color:black;">`)
-
-	// Iterate each row. When the css changes, close the previous span, and open
-	// a new one. No need to close a span when the css is empty, we won't have
-	// opened one in the past.
-	var lastFormat Format
-	for y, row := range v.Content {
-		for x, r := range row {
-			f := v.Format[y][x]
-			if f != lastFormat {
-				if lastFormat != (Format{}) {
-					buf.WriteString("</span>")
-				}
-				if f != (Format{}) {
-					buf.WriteString(`<span style="` + f.css() + `">`)
-				}
-				lastFormat = f
-			}
-			if s := maybeEscapeRune(r); s != "" {
-				buf.WriteString(s)
-			} else {
-				buf.WriteRune(r)
-			}
-		}
-		buf.WriteRune('\n')
-	}
-	buf.WriteString("</pre>")
-
-	return buf.String()
-}
-
-// maybeEscapeRune potentially escapes a rune for display in an html document.
-// It only escapes the things that html.EscapeString does, but it works without allocating
-// a string to hold r. Returns an empty string if there is no need to escape.
-func maybeEscapeRune(r rune) string {
-	switch r {
-	case '&':
-		return "&amp;"
-	case '\'':
-		return "&#39;"
-	case '<':
-		return "&lt;"
-	case '>':
-		return "&gt;"
-	case '"':
-		return "&quot;"
-	}
-	return ""
-}
-
 // put puts r onto the current cursor's position, then advances the cursor.
-func (v *VT100) put(r rune) {
+func (v *Terminal) put(r rune) {
 	if v.Cursor.Y > v.maxY {
 		// track max character offset for UsedHeight()
 		v.maxY = v.Cursor.Y
@@ -350,7 +282,7 @@ func (v *VT100) put(r rune) {
 }
 
 // advance advances the cursor, wrapping to the next line if need be.
-func (v *VT100) advance() {
+func (v *Terminal) advance() {
 	v.Cursor.X++
 	if v.Cursor.X >= v.Width && !v.AutoResizeX {
 		v.Cursor.X = 0
@@ -358,14 +290,14 @@ func (v *VT100) advance() {
 	}
 }
 
-func (v *VT100) resizeXIfNeeded() {
+func (v *Terminal) resizeXIfNeeded() {
 	if v.AutoResizeX && v.Cursor.X+1 >= v.Width {
 		dbg.Println("RESIZING X NEEDED", v.Cursor.Y, v.Height)
 		v.resize(v.Height, v.Cursor.X+1)
 	}
 }
 
-func (v *VT100) scrollOrResizeYIfNeeded() {
+func (v *Terminal) scrollOrResizeYIfNeeded() {
 	if v.Cursor.Y >= v.Height {
 		if v.AutoResizeY {
 			dbg.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
@@ -379,7 +311,6 @@ func (v *VT100) scrollOrResizeYIfNeeded() {
 
 func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
-		panic("invalid scrollUp inputs")
 		return // handle invalid inputs
 	}
 
@@ -399,7 +330,6 @@ func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
 
 func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
-		panic("invalid scrollDown inputs")
 		return // handle invalid inputs
 	}
 
@@ -530,49 +460,49 @@ func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
 	arr[row] = inserted[:len(arr[row])]
 }
 
-func (v *VT100) insertCharacters(n int) {
+func (v *Terminal) insertCharacters(n int) {
 	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	insertEmpties(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})
 }
 
-func (v *VT100) deleteCharacters(n int) {
+func (v *Terminal) deleteCharacters(n int) {
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	deleteCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})
 }
 
-func (v *VT100) repeatPrecedingCharacter(n int) {
+func (v *Terminal) repeatPrecedingCharacter(n int) {
 	repeatPrecedingCharacter(v.Content, v.Cursor.Y, v.Cursor.X, n)
 	repeatPrecedingCharacter(v.Format, v.Cursor.Y, v.Cursor.X, n)
 }
 
-func (v *VT100) eraseCharacters(n int) {
+func (v *Terminal) eraseCharacters(n int) {
 	eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	eraseCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, Format{})
 }
 
-func (v *VT100) insertLines(n int) {
+func (v *Terminal) insertLines(n int) {
 	insertLines(v.Content, v.Cursor.Y, n, ' ')
 	insertLines(v.Format, v.Cursor.Y, n, Format{})
 }
 
-func (v *VT100) deleteLines(n int) {
+func (v *Terminal) deleteLines(n int) {
 	deleteLines(v.Content, v.Cursor.Y, n, ' ')
 	deleteLines(v.Format, v.Cursor.Y, n, Format{})
 }
 
-func (v *VT100) scrollDownN(n int) {
+func (v *Terminal) scrollDownN(n int) {
 	start, end := v.scrollRegion()
 	scrollDown(v.Content, n, start, end, ' ')
 	scrollDown(v.Format, n, start, end, Format{})
 }
 
-func (v *VT100) scrollUpN(n int) {
+func (v *Terminal) scrollUpN(n int) {
 	start, end := v.scrollRegion()
 	scrollUp(v.Content, n, start, end, ' ')
 	scrollUp(v.Format, n, start, end, Format{})
 }
 
-func (v *VT100) scrollRegion() (int, int) {
+func (v *Terminal) scrollRegion() (int, int) {
 	if v.ScrollRegion == nil {
 		return 0, v.Height
 	} else {
@@ -580,14 +510,14 @@ func (v *VT100) scrollRegion() (int, int) {
 	}
 }
 
-func (v *VT100) scrollOne() {
+func (v *Terminal) scrollOne() {
 	v.scrollUpN(1)
 	v.Cursor.Y = v.Height - 1
 }
 
 // home moves the cursor to the coordinates y x. If y x are out of bounds, v.Err
 // is set.
-func (v *VT100) home(y, x int) {
+func (v *Terminal) home(y, x int) {
 	v.Cursor.Y, v.Cursor.X = y, x
 }
 
@@ -608,7 +538,7 @@ const (
 )
 
 // eraseColumns erases columns from the current line.
-func (v *VT100) eraseColumns(d eraseDirection) {
+func (v *Terminal) eraseColumns(d eraseDirection) {
 	y, x := v.Cursor.Y, v.Cursor.X // Aliases for simplicity.
 	switch d {
 	case eraseBack:
@@ -621,7 +551,7 @@ func (v *VT100) eraseColumns(d eraseDirection) {
 }
 
 // eraseLines erases lines from the current terminal.
-func (v *VT100) eraseLines(d eraseDirection) {
+func (v *Terminal) eraseLines(d eraseDirection) {
 	x, y := v.Cursor.X, v.Cursor.Y // Alias for simplicity.
 	switch d {
 	case eraseBack:
@@ -639,7 +569,7 @@ func (v *VT100) eraseLines(d eraseDirection) {
 	}
 }
 
-func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
+func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	// Do not sanitize or bounds-check these coordinates, since they come from the
 	// programmer (me). We should panic if any of them are out of bounds.
 	if y1 > y2 {
@@ -662,7 +592,7 @@ func (v *VT100) eraseRegion(y1, x1, y2, x2 int) {
 	}
 }
 
-func (v *VT100) clear(y, x int, format Format) {
+func (v *Terminal) clear(y, x int, format Format) {
 	if y >= len(v.Content) || x >= len(v.Content[0]) {
 		return
 	}
@@ -670,7 +600,7 @@ func (v *VT100) clear(y, x int, format Format) {
 	v.Format[y][x] = format
 }
 
-func (v *VT100) backspace() {
+func (v *Terminal) backspace() {
 	v.Cursor.X--
 	if v.Cursor.X < 0 {
 		if v.Cursor.Y == 0 {
@@ -682,7 +612,7 @@ func (v *VT100) backspace() {
 	}
 }
 
-func (v *VT100) moveDown() {
+func (v *Terminal) moveDown() {
 	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.End {
 		// if we're at the bottom of the scroll region, scroll it instead of
 		// moving the cursor
@@ -692,7 +622,7 @@ func (v *VT100) moveDown() {
 	}
 }
 
-func (v *VT100) moveUp() {
+func (v *Terminal) moveUp() {
 	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.Start {
 		// if we're at the bottom of the scroll region, scroll it instead of
 		// moving the cursor
@@ -702,10 +632,10 @@ func (v *VT100) moveUp() {
 	}
 }
 
-func (v *VT100) save() {
-	v.savedCursor = v.Cursor
+func (v *Terminal) save() {
+	v.SavedCursor = v.Cursor
 }
 
-func (v *VT100) unsave() {
-	v.Cursor = v.savedCursor
+func (v *Terminal) unsave() {
+	v.Cursor = v.SavedCursor
 }

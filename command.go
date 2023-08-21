@@ -1,4 +1,4 @@
-package vt100
+package midterm
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ func supportError(e error) error {
 // Command is a type of object that the terminal can process to perform
 // an update.
 type Command interface {
-	display(v *VT100) error
+	display(v *Terminal) error
 }
 
 // runeCommand is a simple command that just writes a rune
@@ -39,12 +39,12 @@ func (c runeCommand) String() string {
 	return fmt.Sprintf("%T(%q)", c, string(c))
 }
 
-func (c runeCommand) display(v *VT100) error {
+func (c runeCommand) display(v *Terminal) error {
 	v.put(rune(c))
 	return nil
 }
 
-func setMode(v *VT100, args []string) error {
+func setMode(v *Terminal, args []string) error {
 	if len(args) == 0 {
 		dbg.Println("EMPTY SET MODE")
 		return nil
@@ -103,13 +103,13 @@ func setMode(v *VT100, args []string) error {
 	return nil
 }
 
-func swapAlt(v *VT100) {
+func swapAlt(v *Terminal) {
 	v.AltScreen = !v.AltScreen
 	v.InactiveContent, v.Content = v.Content, v.InactiveContent
 	v.InactiveFormat, v.Format = v.Format, v.InactiveFormat
 }
 
-func unsetMode(v *VT100, args []string) error {
+func unsetMode(v *Terminal, args []string) error {
 	if len(args) == 0 {
 		dbg.Println("EMPTY UNSET MODE")
 		return nil
@@ -161,11 +161,11 @@ func unsetMode(v *VT100, args []string) error {
 	return nil
 }
 
-type escHandler func(*VT100, string) error
+type escHandler func(*Terminal, string) error
 
-type intHandler func(*VT100, []int) error
+type intHandler func(*Terminal, []int) error
 
-type strHandler func(*VT100, []string) error
+type strHandler func(*Terminal, []string) error
 
 var (
 	escHandlers = map[rune]escHandler{
@@ -178,7 +178,7 @@ var (
 		'/': noopEsc, // Character sets
 		'=': noopEsc, // Application keypad
 		'>': noopEsc, // Normal keypad
-		']': func(v *VT100, arg string) error { // OSC (OS Command)
+		']': func(v *Terminal, arg string) error { // OSC (OS Command)
 			args := strings.Split(arg, ";")
 			if len(args) == 0 {
 				dbg.Println("EMPTY OSC")
@@ -195,23 +195,23 @@ var (
 			}
 			return nil
 		},
-		'7': func(v *VT100, _ string) error {
+		'7': func(v *Terminal, _ string) error {
 			v.save()
 			return nil
 		},
-		'8': func(v *VT100, _ string) error {
+		'8': func(v *Terminal, _ string) error {
 			v.unsave()
 			return nil
 		},
-		'D': func(v *VT100, arg string) error {
+		'D': func(v *Terminal, arg string) error {
 			v.moveDown()
 			return nil
 		},
-		'M': func(v *VT100, arg string) error {
+		'M': func(v *Terminal, arg string) error {
 			v.moveUp()
 			return nil
 		},
-		'c': func(v *VT100, arg string) error {
+		'c': func(v *Terminal, arg string) error {
 			v.Reset()
 			return nil
 		},
@@ -228,7 +228,7 @@ var (
 	}
 
 	csiIntHandlers = map[rune]intHandler{
-		'c': func(v *VT100, args []int) error { // Request terminal attributes
+		'c': func(v *Terminal, args []int) error { // Request terminal attributes
 			dbg.Println("SENDING DEVICE ATTRIBUTES", args)
 			if v.ForwardResponses == nil {
 				dbg.Println("NO RESPONSE CHANNEL", args)
@@ -248,7 +248,7 @@ var (
 		'K': eraseColumns,
 		'f': home,
 		't': noopInt, // Window manipulation
-		'd': func(v *VT100, args []int) error {
+		'd': func(v *Terminal, args []int) error {
 			y := 1
 			if len(args) >= 1 {
 				y = args[0]
@@ -258,7 +258,7 @@ var (
 			return home(v, []int{y, v.Cursor.X + 1})
 		},
 		// scroll down N times
-		'T': func(v *VT100, args []int) error {
+		'T': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -268,7 +268,7 @@ var (
 
 			return nil
 		},
-		'S': func(v *VT100, args []int) error {
+		'S': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -278,7 +278,7 @@ var (
 
 			return nil
 		},
-		'L': func(v *VT100, args []int) error {
+		'L': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -288,7 +288,7 @@ var (
 
 			return nil
 		},
-		'M': func(v *VT100, args []int) error {
+		'M': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -298,7 +298,7 @@ var (
 
 			return nil
 		},
-		'n': func(v *VT100, args []int) error { // Device Status Report
+		'n': func(v *Terminal, args []int) error { // Device Status Report
 			dbg.Println("QUERYING", args)
 			if len(args) == 0 {
 				dbg.Println("EMPTY QUERY?", args)
@@ -318,7 +318,7 @@ var (
 			}
 			return nil
 		},
-		'X': func(v *VT100, args []int) error {
+		'X': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -328,7 +328,7 @@ var (
 
 			return nil
 		},
-		'b': func(v *VT100, args []int) error {
+		'b': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -338,7 +338,7 @@ var (
 
 			return nil
 		},
-		'P': func(v *VT100, args []int) error {
+		'P': func(v *Terminal, args []int) error {
 			n := 1
 			if len(args) >= 1 {
 				n = args[0]
@@ -348,7 +348,7 @@ var (
 
 			return nil
 		},
-		'@': func(v *VT100, args []int) error {
+		'@': func(v *Terminal, args []int) error {
 			dbg.Println("INSERTING", args)
 			n := 1
 			if len(args) >= 1 {
@@ -362,7 +362,7 @@ var (
 	}
 )
 
-func setScrollRegion(v *VT100, args []string) error {
+func setScrollRegion(v *Terminal, args []string) error {
 	switch len(args) {
 	case 0:
 		dbg.Println("RESETTING SCROLL REGION", args)
@@ -413,34 +413,34 @@ func (noopCommand) String() string {
 	return "<noop>"
 }
 
-func (noopCommand) display(v *VT100) error {
+func (noopCommand) display(v *Terminal) error {
 	return nil
 }
 
-func noopInt(v *VT100, args []int) error {
+func noopInt(v *Terminal, args []int) error {
 	return nil
 }
 
-func noopStr(v *VT100, args []string) error {
+func noopStr(v *Terminal, args []string) error {
 	return nil
 }
 
-func noopEsc(v *VT100, arg string) error {
+func noopEsc(v *Terminal, arg string) error {
 	return nil
 }
 
-func save(v *VT100, _ []string) error {
+func save(v *Terminal, _ []string) error {
 	v.save()
 	return nil
 }
 
-func unsave(v *VT100, _ []string) error {
+func unsave(v *Terminal, _ []string) error {
 	v.unsave()
 	return nil
 }
 
 // A command to update the attributes of the cursor based on the arg list.
-func updateAttributes(v *VT100, args []string) error {
+func updateAttributes(v *Terminal, args []string) error {
 	f := &v.Cursor.F
 	if len(args) == 0 {
 		*f = Format{Reset: true}
@@ -578,8 +578,8 @@ func updateAttributes(v *VT100, args []string) error {
 	return nil
 }
 
-func relativeMove(y, x int) func(*VT100, []int) error {
-	return func(v *VT100, args []int) error {
+func relativeMove(y, x int) func(*Terminal, []int) error {
+	return func(v *Terminal, args []int) error {
 		c := 1
 		if len(args) >= 1 {
 			c = args[0]
@@ -590,7 +590,7 @@ func relativeMove(y, x int) func(*VT100, []int) error {
 	}
 }
 
-func absoluteMove(v *VT100, args []int) error {
+func absoluteMove(v *Terminal, args []int) error {
 	x := 1
 	if len(args) >= 1 {
 		x = args[0]
@@ -600,7 +600,7 @@ func absoluteMove(v *VT100, args []int) error {
 	return home(v, []int{v.Cursor.Y + 1, x})
 }
 
-func eraseColumns(v *VT100, args []int) error {
+func eraseColumns(v *Terminal, args []int) error {
 	d := eraseForward
 	if len(args) > 0 {
 		d = eraseDirection(args[0])
@@ -612,7 +612,7 @@ func eraseColumns(v *VT100, args []int) error {
 	return nil
 }
 
-func eraseLines(v *VT100, args []int) error {
+func eraseLines(v *Terminal, args []int) error {
 	d := eraseForward
 	if len(args) > 0 {
 		d = eraseDirection(args[0])
@@ -624,7 +624,7 @@ func eraseLines(v *VT100, args []int) error {
 	return nil
 }
 
-func sanitize(v *VT100, y, x int) (int, int, error) {
+func sanitize(v *Terminal, y, x int) (int, int, error) {
 	var err error
 	if y < 0 || y >= v.Height || x < 0 || x >= v.Width {
 		err = fmt.Errorf("out of bounds (%d, %d)", y, x)
@@ -647,7 +647,7 @@ func sanitize(v *VT100, y, x int) (int, int, error) {
 	return y, x, err
 }
 
-func home(v *VT100, args []int) error {
+func home(v *Terminal, args []int) error {
 	var y, x int
 	if len(args) >= 2 {
 		y, x = args[0]-1, args[1]-1 // home args are 1-indexed.
@@ -667,7 +667,7 @@ func (c escCommand) String() string {
 	return fmt.Sprintf("%T[%q %U](%v)", c, c.cmd, c.cmd, c.arg)
 }
 
-func (c escCommand) display(v *VT100) error {
+func (c escCommand) display(v *Terminal) error {
 	f, ok := escHandlers[c.cmd]
 	if !ok {
 		dbg.Println("UNSUPPORTED COMMAND", c)
@@ -689,7 +689,7 @@ func (c csiCommand) String() string {
 	return fmt.Sprintf("%T[%q %U](%v)", c, c.cmd, c.cmd, c.args)
 }
 
-func (c csiCommand) display(v *VT100) error {
+func (c csiCommand) display(v *Terminal) error {
 	strF, ok := csiStrHandlers[c.cmd]
 	if ok {
 		return strF(v, c.argStrs())
@@ -754,7 +754,7 @@ func (c controlCommand) String() string {
 	return fmt.Sprintf("%T(%q)", c, string(c))
 }
 
-func (c controlCommand) display(v *VT100) error {
+func (c controlCommand) display(v *Terminal) error {
 	switch c {
 	case backspace:
 		v.backspace()

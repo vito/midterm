@@ -1,4 +1,4 @@
-package vt100
+package midterm
 
 import (
 	"bytes"
@@ -145,8 +145,8 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 	}
 }
 
-type commandFunc func(v *VT100) error
+type commandFunc func(v *Terminal) error
 
-func (f commandFunc) display(v *VT100) error {
+func (f commandFunc) display(v *Terminal) error {
 	return f(v)
 }

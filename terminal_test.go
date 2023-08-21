@@ -1,4 +1,4 @@
-package vt100_test
+package midterm_test
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/require"
-	"github.com/vito/vt100"
+	"github.com/vito/midterm"
 )
 
 func TestGolden(t *testing.T) {
@@ -41,7 +41,7 @@ func goldenTest(t *testing.T, name string) {
 
 	g := goldie.New(t)
 
-	vt := vt100.NewVT100(24, 120)
+	vt := midterm.NewTerminal(24, 120)
 	err = eachNthFrame(buf, skipFrames, func(frame int, segment []byte) error {
 		t.Logf("frame %d", frame)
 

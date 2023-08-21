@@ -1,4 +1,4 @@
-module github.com/vito/vt100
+module github.com/vito/midterm
 
 go 1.18
 

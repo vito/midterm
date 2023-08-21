@@ -1,4 +1,4 @@
-package vt100
+package midterm
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/muesli/termenv"
 )
 
-func (vt *VT100) Render(w io.Writer) error {
+func (vt *Terminal) Render(w io.Writer) error {
 	for i := 0; i < vt.Height; i++ {
 		err := vt.RenderLine(w, i)
 		if err != nil {
@@ -19,7 +19,7 @@ func (vt *VT100) Render(w io.Writer) error {
 	return nil
 }
 
-func (vt *VT100) RenderLine(w io.Writer, row int) error {
+func (vt *Terminal) RenderLine(w io.Writer, row int) error {
 	var lastFormat Format
 
 	line := vt.Content[row]
