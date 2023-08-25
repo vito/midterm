@@ -99,8 +99,20 @@ type ScrollRegion struct {
 	Start, End int
 }
 
-// NewTerminal creates a new VT100 object with the specified dimensions. y and x
-// must both be greater than zero.
+// NewAutoResizingTerminal creates a new Terminal object with small initial
+// dimensions, configured to automatically resize width and height as needed.
+//
+// This may be useful for applications that want to display dynamically sized
+// content.
+func NewAutoResizingTerminal() *Terminal {
+	term := NewTerminal(1, 80)
+	term.AutoResizeX = true
+	term.AutoResizeY = true
+	return term
+}
+
+// NewTerminal creates a new Terminal object with the specified dimensions. y
+// and x must both be greater than zero.
 //
 // Each cell is set to contain a ' ' rune, and all formats are left as the
 // default.
@@ -145,6 +157,12 @@ func (v *Terminal) UsedHeight() int {
 func (v *Terminal) Resize(h, w int) {
 	v.mut.Lock()
 	v.resize(h, w)
+
+	// disable auto-resize upon manually resizing. what's the point if the new
+	// size won't be respected?
+	v.AutoResizeX = false
+	v.AutoResizeY = false
+
 	f := v.onResize
 	v.mut.Unlock()
 	if f != nil {
