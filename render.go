@@ -10,8 +10,10 @@ import (
 )
 
 func (vt *Terminal) Render(w io.Writer) error {
+	vt.mut.Lock()
+	defer vt.mut.Unlock()
 	for i := 0; i < vt.Height; i++ {
-		err := vt.RenderLine(w, i)
+		err := vt.renderLine(w, i)
 		if err != nil {
 			return err
 		}
@@ -20,6 +22,12 @@ func (vt *Terminal) Render(w io.Writer) error {
 }
 
 func (vt *Terminal) RenderLine(w io.Writer, row int) error {
+	vt.mut.Lock()
+	defer vt.mut.Unlock()
+	return vt.renderLine(w, row)
+}
+
+func (vt *Terminal) renderLine(w io.Writer, row int) error {
 	var lastFormat Format
 
 	line := vt.Content[row]
