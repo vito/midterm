@@ -86,7 +86,7 @@ func setMode(v *Terminal, args []string) error {
 			swapAlt(v)
 			if v.Content == nil || v.Format == nil {
 				dbg.Println("ALLOCATING ALT SCREEN")
-				v.Reset() // allocate alt screen for the first time
+				v.reset() // allocate alt screen for the first time
 			}
 		}
 	case "?2004":
@@ -212,7 +212,7 @@ var (
 			return nil
 		},
 		'c': func(v *Terminal, arg string) error {
-			v.Reset()
+			v.reset()
 			return nil
 		},
 	}

@@ -129,12 +129,18 @@ func NewTerminal(rows, cols int) *Terminal {
 		maxY: -1,
 	}
 
-	v.Reset()
+	v.reset()
 
 	return v
 }
 
 func (v *Terminal) Reset() {
+	v.mut.Lock()
+	defer v.mut.Unlock()
+	v.reset()
+}
+
+func (v *Terminal) reset() {
 	v.Content = make([][]rune, v.Height)
 	v.Format = make([][]Format, v.Height)
 	for row := 0; row < v.Height; row++ {
