@@ -63,12 +63,12 @@ type Terminal struct {
 	// SavedCursor is the state of the cursor last time save() was called.
 	SavedCursor Cursor
 
-	// ForwardResponses is the writer to which we send responses to CSI/OSC queries.
-	ForwardResponses io.Writer
-
 	// ForwardRequests is the writer to which we send requests to forward
 	// to the terminal.
 	ForwardRequests io.Writer
+
+	// ForwardResponses is the writer to which we send responses to CSI/OSC queries.
+	ForwardResponses io.Writer
 
 	// unparsed is the bytes that we have not yet parsed. It typically contains a
 	// partial escape sequence.
@@ -154,9 +154,11 @@ func (v *Terminal) UsedHeight() int {
 	return v.maxY + 1
 }
 
-func (v *Terminal) Resize(h, w int) {
+// Resize sets the terminal height and width to rows and cols and disables
+// auto-resizing on both axes.
+func (v *Terminal) Resize(rows, cols int) {
 	v.mut.Lock()
-	v.resize(h, w)
+	v.resize(rows, cols)
 
 	// disable auto-resize upon manually resizing. what's the point if the new
 	// size won't be respected?
@@ -166,7 +168,40 @@ func (v *Terminal) Resize(h, w int) {
 	f := v.onResize
 	v.mut.Unlock()
 	if f != nil {
-		f(h, w)
+		f(rows, cols)
+	}
+}
+
+// Resize sets the terminal width to cols and disables auto-resizing width.
+func (v *Terminal) ResizeX(cols int) {
+	v.mut.Lock()
+	v.resize(v.Height, cols)
+
+	// disable auto-resize upon manually resizing. what's the point if the new
+	// size won't be respected?
+	v.AutoResizeX = false
+
+	f := v.onResize
+	v.mut.Unlock()
+	if f != nil {
+		f(v.Height, cols)
+	}
+}
+
+// Resize sets the terminal height to rows rows and disables auto-resizing
+// height.
+func (v *Terminal) ResizeY(rows int) {
+	v.mut.Lock()
+	v.resize(rows, v.Width)
+
+	// disable auto-resize upon manually resizing. what's the point if the new
+	// size won't be respected?
+	v.AutoResizeY = false
+
+	f := v.onResize
+	v.mut.Unlock()
+	if f != nil {
+		f(rows, v.Width)
 	}
 }
 
