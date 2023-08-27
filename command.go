@@ -79,15 +79,15 @@ func setMode(v *Terminal, args []string) error {
 		forward = true
 	case "?1049":
 		dbg.Println("SET ALT SCREEN")
-		if v.AltScreen {
+		if v.IsAlt {
 			dbg.Println("ALREADY ALT")
 		} else {
 			dbg.Println("SWITCHING TO ALT")
-			swapAlt(v)
-			if v.Content == nil || v.Format == nil {
+			if v.Alt == nil {
 				dbg.Println("ALLOCATING ALT SCREEN")
-				v.reset() // allocate alt screen for the first time
+				v.Alt = newScreen(v.Height, v.Width)
 			}
+			swapAlt(v)
 		}
 	case "?2004":
 		dbg.Println("SET BRACKETED PASTE")
@@ -104,9 +104,8 @@ func setMode(v *Terminal, args []string) error {
 }
 
 func swapAlt(v *Terminal) {
-	v.AltScreen = !v.AltScreen
-	v.InactiveContent, v.Content = v.Content, v.InactiveContent
-	v.InactiveFormat, v.Format = v.Format, v.InactiveFormat
+	v.IsAlt = !v.IsAlt
+	v.Screen, v.Alt = v.Alt, v.Screen
 }
 
 func unsetMode(v *Terminal, args []string) error {
@@ -141,7 +140,7 @@ func unsetMode(v *Terminal, args []string) error {
 		forward = true
 	case "?1049":
 		dbg.Println("UNSET ALT SCREEN")
-		if !v.AltScreen {
+		if !v.IsAlt {
 			dbg.Println("ALREADY NOT ALT")
 		} else {
 			dbg.Println("RESTORING MAIN SCREEN")

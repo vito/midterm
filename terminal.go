@@ -14,28 +14,15 @@ import (
 // escape sequences, some of which are handled by forwarding them to a local or
 // remote session (e.g. OSC52 copy/paste).
 type Terminal struct {
-	// Height and Width are the dimensions of the terminal.
-	Height, Width int
+	// Screen is the current screen, embedded so that Terminal is a pass-through.
+	*Screen
 
-	// Content is the text in the terminal.
-	Content [][]rune
-
-	// Format is the display properties of each cell.
-	Format [][]Format
+	// Alt is either the alternate screen (if !IsAlt) or the main screen (if
+	// IsAlt).
+	Alt *Screen
 
 	// IsAlt indicates whether the alt screen is active.
-	AltScreen bool
-
-	// InactiveFormat stores the content for the inactive screen (alt if main
-	// active, main if alt active).
-	InactiveContent [][]rune
-
-	// InactiveFormat stores the display properties for the inactive screen (alt
-	// if main active, main if alt active).
-	InactiveFormat [][]Format
-
-	// Cursor is the current state of the cursor.
-	Cursor Cursor
+	IsAlt bool
 
 	// AutoResizeY indicates whether the terminal should automatically resize
 	// when the content exceeds its maximum height.
@@ -122,8 +109,7 @@ func NewTerminal(rows, cols int) *Terminal {
 	}
 
 	v := &Terminal{
-		Height: rows,
-		Width:  cols,
+		Screen: newScreen(rows, cols),
 
 		// start at -1 so there's no "used" height until first write
 		maxY: -1,
@@ -138,20 +124,6 @@ func (v *Terminal) Reset() {
 	v.mut.Lock()
 	defer v.mut.Unlock()
 	v.reset()
-}
-
-func (v *Terminal) reset() {
-	v.Content = make([][]rune, v.Height)
-	v.Format = make([][]Format, v.Height)
-	for row := 0; row < v.Height; row++ {
-		v.Content[row] = make([]rune, v.Width)
-		v.Format[row] = make([]Format, v.Width)
-		for col := 0; col < v.Width; col++ {
-			v.Content[row][col] = ' '
-		}
-	}
-	v.Cursor.X = 0
-	v.Cursor.Y = 0
 }
 
 func (v *Terminal) UsedHeight() int {
@@ -225,10 +197,10 @@ func (v *Terminal) resize(h, w int) {
 		v.maxY = h - 1
 	}
 
-	v.Content, v.Format = v.resizeScreen(h, w, v.Content, v.Format)
+	v.Screen.resize(h, w)
 
-	if v.InactiveContent != nil && v.InactiveFormat != nil {
-		v.InactiveContent, v.InactiveFormat = v.resizeScreen(h, w, v.InactiveContent, v.InactiveFormat)
+	if v.Alt != nil {
+		v.Alt.resize(h, w)
 	}
 
 	if v.Cursor.X >= v.Width {
@@ -237,47 +209,6 @@ func (v *Terminal) resize(h, w int) {
 
 	v.Height = h
 	v.Width = w
-}
-
-func (v *Terminal) resizeScreen(
-	h, w int,
-	screenContent [][]rune,
-	screenFormat [][]Format,
-) ([][]rune, [][]Format) {
-	if h > v.Height {
-		n := h - v.Height
-		for row := 0; row < n; row++ {
-			screenContent = append(screenContent, make([]rune, v.Width))
-			screenFormat = append(screenFormat, make([]Format, v.Width))
-			for col := 0; col < v.Width; col++ {
-				v.clear(v.Height+row, col, Format{})
-			}
-		}
-	} else if h < v.Height {
-		screenContent = screenContent[:h]
-		screenFormat = screenFormat[:h]
-	}
-
-	if w > v.Width {
-		for i := range screenContent {
-			row := make([]rune, w)
-			copy(row, screenContent[i])
-			screenContent[i] = row
-			format := make([]Format, w)
-			copy(format, screenFormat[i])
-			screenFormat[i] = format
-			for j := v.Width; j < w; j++ {
-				v.clear(i, j, Format{})
-			}
-		}
-	} else if w < v.Width {
-		for i := range screenContent {
-			screenContent[i] = screenContent[i][:w]
-			screenFormat[i] = screenFormat[i][:w]
-		}
-	}
-
-	return screenContent, screenFormat
 }
 
 func (v *Terminal) Write(dt []byte) (n int, rerr error) {
@@ -662,14 +593,6 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 			v.clear(y, x, f)
 		}
 	}
-}
-
-func (v *Terminal) clear(y, x int, format Format) {
-	if y >= len(v.Content) || x >= len(v.Content[0]) {
-		return
-	}
-	v.Content[y][x] = ' '
-	v.Format[y][x] = format
 }
 
 func (v *Terminal) backspace() {

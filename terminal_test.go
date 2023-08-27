@@ -43,8 +43,6 @@ func goldenTest(t *testing.T, name string) {
 
 	vt := midterm.NewTerminal(24, 120)
 	err = eachNthFrame(buf, skipFrames, func(frame int, segment []byte) error {
-		t.Logf("frame %d", frame)
-
 		n, err := vt.Write(segment)
 		require.NoError(t, err)
 		require.Equal(t, len(segment), n)
@@ -56,7 +54,8 @@ func goldenTest(t *testing.T, name string) {
 		framePath := filepath.Join("frames", name, fmt.Sprintf("%05d", frame))
 		g.Assert(t, framePath, buf.Bytes())
 		if t.Failed() {
-			t.FailNow()
+			t.Logf("frame mismatch: %d", frame)
+			// t.FailNow()
 		}
 
 		return nil
