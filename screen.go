@@ -1,5 +1,7 @@
 package midterm
 
+import "time"
+
 type Screen struct {
 	// Height and Width are the dimensions of the terminal.
 	Height, Width int
@@ -12,6 +14,24 @@ type Screen struct {
 
 	// Cursor is the current state of the cursor.
 	Cursor Cursor
+
+	// ScrollRegion is the region of the terminal that is scrollable. If it is
+	// nil, the entire terminal is scrollable.
+	//
+	// This value is set by the CSI ; Ps ; Ps r command.
+	ScrollRegion *ScrollRegion
+
+	// CursorVisible indicates whether the cursor is visible.
+	//
+	// This value is set by CSI ? 25 h and unset by CSI ? 25 l.
+	CursorVisible bool
+
+	// CursorBlinking indicates whether the cursor is blinking, and the start of
+	// the blinking interval.
+	CursorBlinkEpoch *time.Time
+
+	// SavedCursor is the state of the cursor last time save() was called.
+	SavedCursor Cursor
 }
 
 func newScreen(h, w int) *Screen {
