@@ -221,50 +221,63 @@ func (v *Terminal) OnResize(f OnResizeFunc) {
 }
 
 func (v *Terminal) resize(h, w int) {
-	if h > v.Height {
-		n := h - v.Height
-		for row := 0; row < n; row++ {
-			v.Content = append(v.Content, make([]rune, v.Width))
-			v.Format = append(v.Format, make([]Format, v.Width))
-			for col := 0; col < v.Width; col++ {
-				v.clear(v.Height+row, col, Format{})
-			}
-		}
-		v.Height = h
-	} else if h < v.Height {
-		v.Content = v.Content[:h]
-		v.Format = v.Format[:h]
-		v.Height = h
-	}
-
 	if h < v.maxY {
 		v.maxY = h - 1
 	}
 
-	if w > v.Width {
-		for i := range v.Content {
-			row := make([]rune, w)
-			copy(row, v.Content[i])
-			v.Content[i] = row
-			format := make([]Format, w)
-			copy(format, v.Format[i])
-			v.Format[i] = format
-			for j := v.Width; j < w; j++ {
-				v.clear(i, j, Format{})
-			}
-		}
-		v.Width = w
-	} else if w < v.Width {
-		for i := range v.Content {
-			v.Content[i] = v.Content[i][:w]
-			v.Format[i] = v.Format[i][:w]
-		}
-		v.Width = w
+	v.Content, v.Format = v.resizeScreen(h, w, v.Content, v.Format)
+
+	if v.InactiveContent != nil && v.InactiveFormat != nil {
+		v.InactiveContent, v.InactiveFormat = v.resizeScreen(h, w, v.InactiveContent, v.InactiveFormat)
 	}
 
 	if v.Cursor.X >= v.Width {
 		v.Cursor.X = v.Width - 1
 	}
+
+	v.Height = h
+	v.Width = w
+}
+
+func (v *Terminal) resizeScreen(
+	h, w int,
+	screenContent [][]rune,
+	screenFormat [][]Format,
+) ([][]rune, [][]Format) {
+	if h > v.Height {
+		n := h - v.Height
+		for row := 0; row < n; row++ {
+			screenContent = append(screenContent, make([]rune, v.Width))
+			screenFormat = append(screenFormat, make([]Format, v.Width))
+			for col := 0; col < v.Width; col++ {
+				v.clear(v.Height+row, col, Format{})
+			}
+		}
+	} else if h < v.Height {
+		screenContent = screenContent[:h]
+		screenFormat = screenFormat[:h]
+	}
+
+	if w > v.Width {
+		for i := range screenContent {
+			row := make([]rune, w)
+			copy(row, screenContent[i])
+			screenContent[i] = row
+			format := make([]Format, w)
+			copy(format, screenFormat[i])
+			screenFormat[i] = format
+			for j := v.Width; j < w; j++ {
+				v.clear(i, j, Format{})
+			}
+		}
+	} else if w < v.Width {
+		for i := range screenContent {
+			screenContent[i] = screenContent[i][:w]
+			screenFormat[i] = screenFormat[i][:w]
+		}
+	}
+
+	return screenContent, screenFormat
 }
 
 func (v *Terminal) Write(dt []byte) (n int, rerr error) {
