@@ -32,12 +32,18 @@ type Screen struct {
 
 	// SavedCursor is the state of the cursor last time save() was called.
 	SavedCursor Cursor
+
+	// MaxY is the maximum vertical offset that a character has been printed.
+	MaxY int
 }
 
 func newScreen(h, w int) *Screen {
 	s := &Screen{
 		Height: h,
 		Width:  w,
+
+		// start at -1 so there's no "used" height until first write
+		MaxY: -1,
 	}
 	s.reset()
 	return s
@@ -58,6 +64,10 @@ func (s *Screen) reset() {
 }
 
 func (v *Screen) resize(h, w int) {
+	if h < v.MaxY {
+		v.MaxY = h - 1
+	}
+
 	if h > v.Height {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
@@ -89,6 +99,13 @@ func (v *Screen) resize(h, w int) {
 			v.Content[i] = v.Content[i][:w]
 			v.Format[i] = v.Format[i][:w]
 		}
+	}
+
+	v.Height = h
+	v.Width = w
+
+	if v.Cursor.X >= v.Width {
+		v.Cursor.X = v.Width - 1
 	}
 }
 

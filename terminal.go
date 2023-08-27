@@ -45,9 +45,6 @@ type Terminal struct {
 	// onResize is a hook called every time the terminal resizes.
 	onResize OnResizeFunc
 
-	// maxY is the maximum vertical offset that a character was printed
-	maxY int
-
 	// for synchronizing e.g. writes and async resizing
 	mut sync.Mutex
 }
@@ -91,9 +88,6 @@ func NewTerminal(rows, cols int) *Terminal {
 
 	v := &Terminal{
 		Screen: newScreen(rows, cols),
-
-		// start at -1 so there's no "used" height until first write
-		maxY: -1,
 	}
 
 	v.reset()
@@ -110,7 +104,7 @@ func (v *Terminal) Reset() {
 func (v *Terminal) UsedHeight() int {
 	v.mut.Lock()
 	defer v.mut.Unlock()
-	return v.maxY + 1
+	return v.MaxY + 1
 }
 
 // Resize sets the terminal height and width to rows and cols and disables
@@ -174,22 +168,10 @@ func (v *Terminal) OnResize(f OnResizeFunc) {
 }
 
 func (v *Terminal) resize(h, w int) {
-	if h < v.maxY {
-		v.maxY = h - 1
-	}
-
 	v.Screen.resize(h, w)
-
 	if v.Alt != nil {
 		v.Alt.resize(h, w)
 	}
-
-	if v.Cursor.X >= v.Width {
-		v.Cursor.X = v.Width - 1
-	}
-
-	v.Height = h
-	v.Width = w
 }
 
 func (v *Terminal) Write(dt []byte) (n int, rerr error) {
@@ -253,9 +235,9 @@ func (v *Terminal) Process(c Command) error {
 
 // put puts r onto the current cursor's position, then advances the cursor.
 func (v *Terminal) put(r rune) {
-	if v.Cursor.Y > v.maxY {
+	if v.Cursor.Y > v.MaxY {
 		// track max character offset for UsedHeight()
-		v.maxY = v.Cursor.Y
+		v.MaxY = v.Cursor.Y
 	}
 
 	row := v.Content[v.Cursor.Y]
