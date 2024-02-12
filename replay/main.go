@@ -168,6 +168,9 @@ func (m vtModel) View() string {
 
 func renderVt(w io.Writer, vt *midterm.Terminal) {
 	for i := 0; i < vt.Height; i++ {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
 		vt.RenderLine(w, i)
 	}
 }

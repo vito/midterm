@@ -28,8 +28,11 @@ func (vt *Terminal) RenderLine(w io.Writer, row int) error {
 }
 
 func (vt *Terminal) renderLine(w io.Writer, row int) error {
-	var lastFormat Format
+	if row >= len(vt.Content) {
+		return fmt.Errorf("line %d exceeds content height", row)
+	}
 
+	var lastFormat Format
 	line := vt.Content[row]
 	for col, r := range line {
 		f := vt.Format[row][col]
@@ -53,7 +56,7 @@ func (vt *Terminal) renderLine(w io.Writer, row int) error {
 		}
 	}
 
-	_, err := fmt.Fprintln(w, resetSeq)
+	_, err := fmt.Fprint(w, resetSeq)
 	return err
 }
 
