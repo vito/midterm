@@ -374,35 +374,38 @@ func setScrollRegion(v *Terminal, args []string) error {
 		var start, end int
 
 		if args[0] == "" {
-			start = 0
+			start = 1
 		} else {
 			line, err := strconv.Atoi(args[0])
 			if err != nil {
 				return err
 			}
-			start = line - 1
+			start = line
 		}
 
 		if args[1] == "" {
-			end = v.Height - 1
+			end = v.Height
 		} else {
 			line, err := strconv.Atoi(args[1])
 			if err != nil {
 				return err
 			}
-			end = line - 1
+			end = line
 		}
 
-		if start == 0 && end == v.Height-1 {
+		if start == 1 && end == v.Height {
 			// equivalent to just resetting
 			v.ScrollRegion = nil
 		} else {
 			v.ScrollRegion = &ScrollRegion{
-				Start: start,
-				End:   end,
+				Start: start - 1,
+				End:   end - 1,
 			}
 		}
 	}
+	// Reset cursor position and wrap state
+	// TODO: respect origin mode
+	v.home(0, 0)
 	return nil
 }
 
@@ -757,8 +760,14 @@ func (c controlCommand) display(v *Terminal) error {
 	switch c {
 	case backspace:
 		v.backspace()
+	case carriageReturn:
+		v.Cursor.X = 0
+		v.wrap = false
 	case linefeed:
-		v.Cursor.X = 0 // TODO is this right? seems like we're ignoring raw/cooked
+		if !v.Raw {
+			// in "cooked" mode, commonly used for displaying logs, \n implies \r\n
+			v.Cursor.X = 0
+		}
 		v.moveDown()
 	case horizontalTab:
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
@@ -771,8 +780,6 @@ func (c controlCommand) display(v *Terminal) error {
 			v.clear(v.Cursor.Y, x, format)
 		}
 		v.Cursor.X = target
-	case carriageReturn:
-		v.Cursor.X = 0
 	}
 	return nil
 }

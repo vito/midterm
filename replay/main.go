@@ -66,6 +66,7 @@ func record(out string, cmd []string) error {
 	defer func() { _ = ptmx.Close() }() // Best effort.
 
 	vt := midterm.NewTerminal(rows, cols)
+	vt.Raw = true
 	vt.CursorVisible = true
 	vt.ForwardResponses = ptmx
 	vt.ForwardRequests = os.Stdout
@@ -105,6 +106,7 @@ func record(out string, cmd []string) error {
 
 func replay(out string) error {
 	vt := midterm.NewTerminal(rows, cols)
+	vt.Raw = true
 	vt.CursorVisible = true
 
 	content, err := os.ReadFile(out)
@@ -118,10 +120,11 @@ func replay(out string) error {
 	for _, f := range fields {
 		before := new(bytes.Buffer)
 		renderVt(before, vt)
+		prev := vt.Cursor
 		vt.Write(f)
 		after := new(bytes.Buffer)
 		renderVt(after, vt)
-		fmt.Printf("------------------------------------------------------------------------------------------- %q\n", f)
+		fmt.Printf("------------------------------------------------------------------------------------------- (%d,%d) %q\n", prev.X, prev.Y, f)
 		renderVt(os.Stdout, vt)
 		// if regexp.MustCompile("\x1b" + `\[.*[TS]`).Match(after.Bytes()) {
 		// 	fmt.Print(before.String())
