@@ -13,6 +13,9 @@ func (vt *Terminal) Render(w io.Writer) error {
 	vt.mut.Lock()
 	defer vt.mut.Unlock()
 	for i := 0; i < vt.Height; i++ {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
 		err := vt.renderLine(w, i)
 		if err != nil {
 			return err
