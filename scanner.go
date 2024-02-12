@@ -18,19 +18,21 @@ import (
 //
 // You should not share s with any other reader, because it could leave
 // the stream in an invalid state.
-func Decode(s io.RuneScanner) (Command, []rune, error) {
+func Decode(s *bytes.Buffer) (Command, []byte, error) {
 	r, size, err := s.ReadRune()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if r == unicode.ReplacementChar && size == 1 {
-		return nil, nil, fmt.Errorf("non-utf8 data from reader")
+		s.UnreadRune()
+		return nil, s.Bytes(), fmt.Errorf("non-utf8 data from reader: %q (rest: %q)", r, s.String())
 	}
 
 	if r == escape || r == monogramCsi { // At beginning of escape sequence.
 		s.UnreadRune()
-		return scanEscapeCommand(s)
+		cmd, rest, err := scanEscapeCommand(s)
+		return cmd, []byte(string(rest)), err
 	}
 
 	if unicode.IsControl(r) {

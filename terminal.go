@@ -207,8 +207,8 @@ func (v *Terminal) Write(dt []byte) (n int, rerr error) {
 	for buf.Len() > 0 {
 		cmd, unparsed, err := Decode(buf)
 		if err != nil {
-			dbg.Printf("LEAVING UNPARSED: %q", string(unparsed))
-			v.unparsed = []byte(string(unparsed))
+			dbg.Printf("LEAVING UNPARSED: %q FOR ERR: %s", string(unparsed), err)
+			v.unparsed = unparsed
 			break
 		}
 
