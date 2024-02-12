@@ -220,7 +220,28 @@ var (
 		'h': setMode,
 		'l': unsetMode,
 		's': save,
-		'u': unsave,           // NB: vim prints \e[?u on start - a bit of a mystery
+		// Kitty progressive enhancement
+		// https://sw.kovidgoyal.net/kitty/keyboard-protocol/#progressive-enhancement
+		'u': func(v *Terminal, args []string) error {
+			dbg.Println("RESPONDING TO PROGRESSIVE ENHANCEMENT", args)
+			if v.ForwardResponses == nil {
+				dbg.Println("NO RESPONSE CHANNEL", args)
+				return nil
+			}
+			if len(args) == 0 {
+				dbg.Println("EMPTY PROGRESSIVE ENHANCEMENT", args)
+				return nil
+			}
+			switch args[0] {
+			case "?":
+				fmt.Fprint(v.ForwardResponses, termenv.CSI+"?0u")
+			case ">1":
+				dbg.Println("IGNORING PROGRESSIVE ENHANCEMENT >1", args)
+			case "<1":
+				dbg.Println("IGNORING PROGRESSIVE ENHANCEMENT <1", args)
+			}
+			return nil
+		},
 		'q': noopStr,          // Set Cursor Style; vim prints \e[2 q which is another mystery
 		'm': updateAttributes, // NB: 'm' usually has int args, except for CSI > Pp m and CSI ? Pp m
 		'r': setScrollRegion,
@@ -234,7 +255,7 @@ var (
 				return nil
 			}
 			dbg.Println("RESPONDING VT102")
-			fmt.Fprint(v.ForwardResponses, termenv.CSI+"?6c")
+			fmt.Fprint(v.ForwardResponses, termenv.CSI+"?62;22c") // VT220 + ANSI
 			return nil
 		},
 		'A': relativeMove(-1, 0),
