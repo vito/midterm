@@ -585,7 +585,7 @@ func relativeMove(y, x int) func(*Terminal, []int) error {
 		}
 		// home is 1-indexed, because that's what the terminal sends us. We want to
 		// reuse its sanitization scheme, so we'll just modify our args by that amount.
-		return home(v, []int{v.Cursor.Y + y*c + 1, v.Cursor.X + x*c + 1})
+		return home(v, []int{(v.Cursor.Y + 1) + y*c, (v.Cursor.X + 1) + x*c})
 	}
 }
 
