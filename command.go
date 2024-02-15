@@ -50,54 +50,67 @@ func setMode(v *Terminal, args []string) error {
 		return nil
 	}
 
-	mode := args[0]
-
-	var forward bool
-	switch mode {
-	case "4":
-		dbg.Println("SET RESET MODE")
-	case "?1":
-		dbg.Println("SET APP CURSOR MODE")
-		forward = true
-	case "?7":
-		dbg.Println("SET WRAP MODE")
-	case "?12":
-		dbg.Println("SET BLINK CURSOR MODE")
-		epoch := time.Now()
-		v.CursorBlinkEpoch = &epoch
-	case "?25":
-		dbg.Println("SET CURSOR VISIBLE")
-		v.CursorVisible = true
-	case "?1000", // basic
-		"?1002", // drag
-		"?1003", // all mouse controls
-		"?1006": // extended mouse coords
-		dbg.Println("SET MOUSE TRACKING MODE", mode)
-		forward = true
-	case "?1004": // window focus
-		dbg.Println("SET WINDOW FOCUS TRACKING MODE", mode)
-		forward = true
-	case "?1049":
-		dbg.Println("SET ALT SCREEN")
-		if v.IsAlt {
-			dbg.Println("ALREADY ALT")
-		} else {
-			dbg.Println("SWITCHING TO ALT")
-			if v.Alt == nil {
-				dbg.Println("ALLOCATING ALT SCREEN")
-				v.Alt = newScreen(v.Height, v.Width)
-			}
-			swapAlt(v)
+	var private bool
+	for _, mode := range args {
+		// normalize ? prefix for multiple modes
+		mode, ok := strings.CutPrefix(mode, "?")
+		if ok {
+			private = true
 		}
-	case "?2004":
-		dbg.Println("SET BRACKETED PASTE")
-		forward = true
-	default:
-		dbg.Println("SET UNKNOWN MODE", mode)
-	}
+		if private {
+			mode = "?" + mode
+		}
 
-	if forward && v.ForwardRequests != nil {
-		fmt.Fprintf(v.ForwardRequests, "\x1b[%sh", mode)
+		var forward bool
+		switch mode {
+		case "4":
+			dbg.Println("SET RESET MODE")
+
+		case "?1":
+			dbg.Println("SET APP CURSOR MODE")
+			forward = true
+		case "?7":
+			dbg.Println("SET WRAP MODE")
+		case "?12":
+			dbg.Println("SET BLINK CURSOR MODE")
+			epoch := time.Now()
+			v.CursorBlinkEpoch = &epoch
+		case "?25":
+			dbg.Println("SET CURSOR VISIBLE")
+			v.CursorVisible = true
+		case "?1000", // basic
+			"?1002", // drag
+			"?1003", // all mouse controls
+			"?1006": // extended mouse coords
+			dbg.Println("SET MOUSE TRACKING MODE", mode)
+			forward = true
+		case "?1004": // window focus
+			dbg.Println("SET WINDOW FOCUS TRACKING MODE", mode)
+			forward = true
+		case "?1049":
+			dbg.Println("SET ALT SCREEN")
+			if v.IsAlt {
+				dbg.Println("ALREADY ALT")
+			} else {
+				dbg.Println("SWITCHING TO ALT")
+				if v.Alt == nil {
+					dbg.Println("ALLOCATING ALT SCREEN")
+					v.Alt = newScreen(v.Height, v.Width)
+				}
+				swapAlt(v)
+			}
+		case "?2004":
+			dbg.Println("SET BRACKETED PASTE")
+			forward = true
+		default:
+			dbg.Println("SET UNKNOWN MODE", mode)
+		}
+
+		if forward && v.ForwardRequests != nil {
+			modeStr := fmt.Sprintf("\x1b[%sh", mode)
+			dbg.Printf("FORWARDING SET MODE: %q", modeStr)
+			fmt.Fprint(v.ForwardRequests, modeStr)
+		}
 	}
 
 	return nil
