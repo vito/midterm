@@ -52,6 +52,10 @@ type Terminal struct {
 	// onResize is a hook called every time the terminal resizes.
 	onResize OnResizeFunc
 
+	// onScrollack is a hook called every time a line is about to be pushed out
+	// of the visible screen region.
+	onScrollback OnScrollbackFunc
+
 	// for synchronizing e.g. writes and async resizing
 	mut sync.Mutex
 }
@@ -165,13 +169,24 @@ func (v *Terminal) ResizeY(rows int) {
 	}
 }
 
+type OnScrollbackFunc func(line Line)
+
+// OnScrollback sets a hook that is called every time a line is about to be
+// pushed out of the visible screen region.
+func (v *Terminal) OnScrollback(f OnScrollbackFunc) {
+	v.mut.Lock()
+	v.onScrollback = f
+	v.mut.Unlock()
+}
+
 type OnResizeFunc func(rows, cols int)
 
+// OnResize sets a hook that is called every time the terminal resizes.
 func (v *Terminal) OnResize(f OnResizeFunc) {
 	f(v.Height, v.Width)
 	v.mut.Lock()
-	defer v.mut.Unlock()
 	v.onResize = f
+	v.mut.Unlock()
 }
 
 func (v *Terminal) resize(h, w int) {
@@ -496,6 +511,11 @@ func (v *Terminal) scrollDownN(n int) {
 }
 
 func (v *Terminal) scrollUpN(n int) {
+	if v.onScrollback != nil {
+		for i := 0; i < n; i++ {
+			v.onScrollback(Line{v.Content[i], v.Format[i]})
+		}
+	}
 	// v.wrap = false // scroll up does NOT reset the wrap state.
 	start, end := v.scrollRegion()
 	scrollUp(v.Content, n, start, end, ' ')
