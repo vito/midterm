@@ -287,9 +287,11 @@ func (v *Terminal) advance() {
 }
 
 func (v *Terminal) resizeXIfNeeded() {
-	if v.AutoResizeX && v.Cursor.X+1 >= v.Width {
-		dbg.Println("RESIZING X NEEDED", v.Cursor.Y, v.Height)
-		v.resize(v.Height, v.Cursor.X+1)
+	// +1 because printing advances the cursor, and this is called before the print
+	target := v.Cursor.X + 1
+	if v.AutoResizeX && target >= v.Width {
+		dbg.Println("RESIZING X NEEDED", target, v.Width)
+		v.resize(v.Height, target+1)
 	}
 }
 
