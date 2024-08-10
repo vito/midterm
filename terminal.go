@@ -27,9 +27,22 @@ type Terminal struct {
 	// when the content exceeds its maximum height.
 	AutoResizeY bool
 
+	// LimitY, if non-zero, is the maximum number of lines to grow to before
+	// discarding the oldest lines.
+	//
+	// It is highly recommended to set this to avoid unbounded growth.
+	LimitY int
+
 	// AutoResizeX indicates whether the terminal should automatically resize
 	// when the content exceeds its maximum width.
 	AutoResizeX bool
+
+	// LimitX, if non-zero, is the maximum number of columns to grow to before
+	// wrapping text instead.
+	//
+	// It is highly recommended to set this to avoid performance issues when a
+	// linebreak is never printed.
+	LimitX int
 
 	// ForwardRequests is the writer to which we send requests to forward
 	// to the terminal.
@@ -289,7 +302,7 @@ func (v *Terminal) advance() {
 func (v *Terminal) resizeXIfNeeded() {
 	// +1 because printing advances the cursor, and this is called before the print
 	target := v.Cursor.X + 1
-	if v.AutoResizeX && target >= v.Width {
+	if v.AutoResizeX && target >= v.Width && v.LimitX > 0 && v.Width < v.LimitX {
 		dbg.Println("RESIZING X NEEDED", target, v.Width)
 		v.resize(v.Height, target+1)
 	}
@@ -297,7 +310,7 @@ func (v *Terminal) resizeXIfNeeded() {
 
 func (v *Terminal) scrollOrResizeYIfNeeded() {
 	if v.Cursor.Y >= v.Height {
-		if v.AutoResizeY {
+		if v.AutoResizeY && v.LimitY > 0 && v.Height < v.LimitY {
 			dbg.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
 			v.resize(v.Cursor.Y+1, v.Width)
 		} else {
