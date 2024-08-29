@@ -35,6 +35,8 @@ type Screen struct {
 
 	// MaxY is the maximum vertical offset that a character has been printed.
 	MaxY int
+	// MaxX is the maximum horizontal offset that a character has been printed.
+	MaxX int
 }
 
 func newScreen(h, w int) *Screen {
@@ -104,15 +106,12 @@ func (v *Screen) resize(h, w int) {
 	v.Height = h
 	v.Width = w
 
-	if v.Cursor.X >= v.Width {
+	if v.Width != 0 && v.Cursor.X >= v.Width {
 		v.Cursor.X = v.Width - 1
 	}
 }
 
 func (v *Screen) clear(y, x int, format Format) {
-	if y >= len(v.Content) || x >= len(v.Content[0]) {
-		return
-	}
 	v.Content[y][x] = ' '
 	v.Format[y][x] = format
 }

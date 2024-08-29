@@ -2,7 +2,6 @@ package midterm
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"runtime/debug"
@@ -27,8 +26,9 @@ type Terminal struct {
 	// when the content exceeds its maximum height.
 	AutoResizeY bool
 
-	// AutoResizeX indicates whether the terminal should automatically resize
-	// when the content exceeds its maximum width.
+	// AutoResizeX indicates that the terminal has no defined width - instead,
+	// columns are dynamically allocated as text is printed, and not all rows
+	// will be the same width.
 	AutoResizeX bool
 
 	// ForwardRequests is the writer to which we send requests to forward
@@ -93,10 +93,6 @@ func NewAutoResizingTerminal() *Terminal {
 // Each cell is set to contain a ' ' rune, and all formats are left as the
 // default.
 func NewTerminal(rows, cols int) *Terminal {
-	if rows <= 0 || cols <= 0 {
-		panic(fmt.Errorf("invalid dim (%d, %d)", rows, cols))
-	}
-
 	v := &Terminal{
 		Screen: newScreen(rows, cols),
 	}
@@ -116,6 +112,12 @@ func (v *Terminal) UsedHeight() int {
 	v.mut.Lock()
 	defer v.mut.Unlock()
 	return v.MaxY + 1
+}
+
+func (v *Terminal) UsedWidth() int {
+	v.mut.Lock()
+	defer v.mut.Unlock()
+	return v.MaxX + 1
 }
 
 // Resize sets the terminal height and width to rows and cols and disables
@@ -265,21 +267,23 @@ func (v *Terminal) put(r rune) {
 		v.scrollOrResizeYIfNeeded()
 		v.wrap = false
 	}
-	if v.Cursor.Y > v.MaxY {
+	x, y := v.Cursor.X, v.Cursor.Y
+	v.Content[y][x] = r
+	v.Format[y][x] = v.Cursor.F
+	if y > v.MaxY {
 		// track max character offset for UsedHeight()
-		v.MaxY = v.Cursor.Y
+		v.MaxY = y
 	}
-	row, rowF :=
-		v.Content[v.Cursor.Y],
-		v.Format[v.Cursor.Y]
-	row[v.Cursor.X] = r
-	rowF[v.Cursor.X] = v.Cursor.F
+	if x > v.MaxX {
+		// track max character offset for UsedHeight()
+		v.MaxX = x
+	}
 	v.advance()
 }
 
 // advance advances the cursor, wrapping to the next line if need be.
 func (v *Terminal) advance() {
-	if v.Cursor.X == v.Width-1 {
+	if !v.AutoResizeX && v.Cursor.X == v.Width-1 {
 		v.wrap = true
 	} else {
 		v.Cursor.X++
@@ -289,9 +293,17 @@ func (v *Terminal) advance() {
 func (v *Terminal) resizeXIfNeeded() {
 	// +1 because printing advances the cursor, and this is called before the print
 	target := v.Cursor.X + 1
-	if v.AutoResizeX && target >= v.Width {
-		dbg.Println("RESIZING X NEEDED", target, v.Width)
-		v.resize(v.Height, target+1)
+	row := v.Cursor.Y
+	if v.AutoResizeX && target >= len(v.Screen.Content[row]) {
+		formats := v.Screen.Format[row]
+		var f Format
+		if len(formats) > 0 {
+			f = formats[min(v.Cursor.X, len(formats)-1)]
+		}
+		for i := 0; i <= (target+1)-len(v.Screen.Content[row]); i++ {
+			v.Screen.Content[row] = append(v.Screen.Content[row], ' ')
+			v.Screen.Format[row] = append(v.Screen.Format[row], f)
+		}
 	}
 }
 
@@ -595,8 +607,6 @@ func (v *Terminal) eraseLines(d eraseDirection) {
 func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	// Erasing lines and columns clears the wrap state.
 	v.wrap = false
-	// Do not sanitize or bounds-check these coordinates, since they come from the
-	// programmer (me). We should panic if any of them are out of bounds.
 	if y1 > y2 {
 		y1, y2 = y2, y1
 	}
@@ -605,7 +615,12 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	}
 	f := v.Cursor.F
 	for y := y1; y <= y2; y++ {
-		for x := x1; x <= x2; x++ {
+		rowX2 := x2
+		if rowX2 < 0 {
+			// to handle dynamic width, assume "clear to end"
+			rowX2 = len(v.Content[y]) - 1
+		}
+		for x := x1; x <= rowX2; x++ {
 			v.clear(y, x, f)
 		}
 	}
@@ -618,7 +633,11 @@ func (v *Terminal) backspace() {
 			v.Cursor.X = 0
 		} else {
 			v.Cursor.Y--
-			v.Cursor.X = v.Width - 1
+			if v.AutoResizeX {
+				v.Cursor.X = len(v.Content[v.Cursor.Y]) - 1
+			} else {
+				v.Cursor.X = v.Width - 1
+			}
 		}
 	}
 }

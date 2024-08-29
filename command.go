@@ -662,7 +662,7 @@ func eraseLines(v *Terminal, args []int) error {
 
 func sanitize(v *Terminal, y, x int) (int, int, error) {
 	var err error
-	if y < 0 || y >= v.Height || x < 0 || x >= v.Width {
+	if y < 0 || y >= v.Height || x < 0 || (!v.AutoResizeX && x >= v.Width) {
 		err = fmt.Errorf("out of bounds (%d, %d)", y, x)
 	} else {
 		return y, x, nil
@@ -677,7 +677,7 @@ func sanitize(v *Terminal, y, x int) (int, int, error) {
 	if x < 0 {
 		x = 0
 	}
-	if x >= v.Width {
+	if !v.AutoResizeX && x >= v.Width {
 		x = v.Width - 1
 	}
 	return y, x, err
@@ -805,13 +805,18 @@ func (c controlCommand) display(v *Terminal) error {
 		v.moveDown()
 	case horizontalTab:
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
-		if target >= v.Width {
+		if !v.AutoResizeX && target >= v.Width {
 			target = v.Width - 1
 		}
 		formatY := v.Format[v.Cursor.Y]
 		format := formatY[v.Cursor.X]
 		for x := v.Cursor.X; x < target; x++ {
-			v.clear(v.Cursor.Y, x, format)
+			if v.AutoResizeX {
+				v.resizeXIfNeeded()
+				v.put(' ')
+			} else {
+				v.clear(v.Cursor.Y, x, format)
+			}
 		}
 		v.Cursor.X = target
 	}
