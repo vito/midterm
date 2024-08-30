@@ -60,8 +60,8 @@ func (vt *Terminal) renderLine(w io.Writer, row int) error {
 		f := vt.Format[row][col]
 
 		if vt.CursorVisible && row == vt.Cursor.Y && col == vt.Cursor.X {
-			f.Reverse = vt.CursorBlinkEpoch == nil ||
-				int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0
+			f.SetReverse(vt.CursorBlinkEpoch == nil ||
+				int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0)
 		}
 
 		if f != lastFormat {
@@ -95,11 +95,10 @@ func brighten(color termenv.Color) termenv.Color {
 func (f Format) Render() string {
 	styles := []string{}
 
-	switch f.Intensity {
-	case Bold:
+	if f.IsBold() {
 		styles = append(styles, termenv.BoldSeq)
 		f.Fg = brighten(f.Fg)
-	case Faint:
+	} else if f.IsFaint() {
 		styles = append(styles, termenv.FaintSeq)
 	}
 
@@ -110,36 +109,36 @@ func (f Format) Render() string {
 		styles = append(styles, f.Bg.Sequence(true))
 	}
 
-	if f.Italic {
+	if f.IsItalic() {
 		styles = append(styles, termenv.ItalicSeq)
 	}
 
-	if f.Underline {
+	if f.IsUnderline() {
 		styles = append(styles, termenv.UnderlineSeq)
 	}
 
-	if f.Blink {
+	if f.IsBlink() {
 		styles = append(styles, termenv.BlinkSeq)
 	}
 
-	if f.Reverse {
+	if f.IsReverse() {
 		styles = append(styles, termenv.ReverseSeq)
 	}
 
-	if f.Conceal {
+	if f.IsConceal() {
 		styles = append(styles, "8")
 	}
 
-	if f.CrossOut {
-		styles = append(styles, termenv.CrossOutSeq)
-	}
-
-	if f.Overline {
-		styles = append(styles, termenv.OverlineSeq)
-	}
-
+	// if f.IsCrossOut() {
+	// 	styles = append(styles, termenv.CrossOutSeq)
+	// }
+	//
+	// if f.IsOverline() {
+	// 	styles = append(styles, termenv.OverlineSeq)
+	// }
+	//
 	var res string
-	if f.Reset || f == (Format{}) {
+	if f.IsReset() || f == (Format{}) {
 		res = resetSeq
 	}
 	if len(styles) > 0 {

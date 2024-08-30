@@ -475,11 +475,13 @@ func unsave(v *Terminal, _ []string) error {
 	return nil
 }
 
+var Reset = Format{Properties: ResetBit}
+
 // A command to update the attributes of the cursor based on the arg list.
 func updateAttributes(v *Terminal, args []string) error {
 	f := &v.Cursor.F
 	if len(args) == 0 {
-		*f = Format{Reset: true}
+		*f = Reset
 		return nil
 	}
 
@@ -504,31 +506,34 @@ func updateAttributes(v *Terminal, args []string) error {
 
 		switch x {
 		case 0:
-			*f = Format{Reset: true}
+			*f = Reset
 		case 1:
-			f.Intensity = Bold
+			f.SetBold(true)
+			f.SetFaint(false)
 		case 2:
-			f.Intensity = Faint
+			f.SetBold(false)
+			f.SetFaint(true)
 		case 3:
-			f.Italic = true
+			f.SetItalic(true)
 		case 22:
-			f.Intensity = Normal
+			f.SetBold(false)
+			f.SetFaint(false)
 		case 4:
-			f.Underline = true
+			f.SetUnderline(true)
 		case 24:
-			f.Underline = false
+			f.SetUnderline(false)
 		case 5, 6:
-			f.Blink = true // We don't distinguish between blink speeds.
+			f.SetBlink(true)
 		case 25:
-			f.Blink = false
+			f.SetBlink(false)
 		case 7:
-			f.Reverse = true
+			f.SetReverse(true)
 		case 27:
-			f.Reverse = false
+			f.SetReverse(false)
 		case 8:
-			f.Conceal = true
+			f.SetConceal(true)
 		case 28:
-			f.Conceal = false
+			f.SetConceal(false)
 		case 30, 31, 32, 33, 34, 35, 36, 37:
 			f.Fg = termenv.ANSIColor(x - 30)
 		case 39:

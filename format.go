@@ -7,19 +7,124 @@ import (
 	"github.com/muesli/termenv"
 )
 
-// Format represents the display format of text on a terminal.
+// Constants for property bit positions
+const (
+	ResetBit uint8 = 1 << iota
+	BoldBit
+	FaintBit
+	ItalicBit
+	UnderlineBit
+	BlinkBit
+	ReverseBit
+	ConcealBit
+	// not worth the memory footprint
+	// CrossOutBit
+	// OverlineBit
+)
+
+// Format represents the text formatting options.
 type Format struct {
-	// Reset inidcates that the format should be reset prior to applying any of
-	// the other fields.
-	Reset bool
-	// Fg is the foreground color.
-	Fg termenv.Color
-	// Bg is the background color.
-	Bg termenv.Color
-	// Intensity is the text intensity (bright, normal, dim).
-	Intensity Intensity
-	// Various text properties.
-	Italic, Underline, Blink, Reverse, Conceal, CrossOut, Overline bool
+	// Fg and Bg are the foreground and background colors.
+	Fg, Bg termenv.Color
+
+	// Properties packed into a single byte.
+	Properties uint8
+}
+
+// Helper methods to set properties
+
+func (f *Format) SetReset(value bool) {
+	f.setProperty(ResetBit, value)
+}
+
+func (f *Format) IsReset() bool {
+	return f.hasProperty(ResetBit)
+}
+
+func (f *Format) SetBold(value bool) {
+	f.setProperty(BoldBit, value)
+}
+
+func (f *Format) IsBold() bool {
+	return f.hasProperty(BoldBit)
+}
+
+func (f *Format) SetFaint(value bool) {
+	f.setProperty(FaintBit, value)
+}
+
+func (f *Format) IsFaint() bool {
+	return f.hasProperty(FaintBit)
+}
+
+func (f *Format) SetItalic(value bool) {
+	f.setProperty(ItalicBit, value)
+}
+
+func (f *Format) IsItalic() bool {
+	return f.hasProperty(ItalicBit)
+}
+
+func (f *Format) SetUnderline(value bool) {
+	f.setProperty(UnderlineBit, value)
+}
+
+func (f *Format) IsUnderline() bool {
+	return f.hasProperty(UnderlineBit)
+}
+
+func (f *Format) SetBlink(value bool) {
+	f.setProperty(BlinkBit, value)
+}
+
+func (f *Format) IsBlink() bool {
+	return f.hasProperty(BlinkBit)
+}
+
+func (f *Format) SetReverse(value bool) {
+	f.setProperty(ReverseBit, value)
+}
+
+func (f *Format) IsReverse() bool {
+	return f.hasProperty(ReverseBit)
+}
+
+func (f *Format) SetConceal(value bool) {
+	f.setProperty(ConcealBit, value)
+}
+
+func (f *Format) IsConceal() bool {
+	return f.hasProperty(ConcealBit)
+}
+
+//	func (f *Format) SetCrossOut(value bool) {
+//		f.setProperty(CrossOutBit, value)
+//	}
+//
+//	func (f *Format) IsCrossOut() bool {
+//		return f.hasProperty(CrossOutBit)
+//	}
+//
+//	func (f *Format) SetOverline(value bool) {
+//		f.setProperty(OverlineBit, value)
+//	}
+//
+//	func (f *Format) IsOverline() bool {
+//		return f.hasProperty(OverlineBit)
+//	}
+
+// Helper method to set a property bit
+func (f *Format) setProperty(bit uint8, value bool) {
+	if value {
+		f.Properties |= bit
+	} else {
+		f.Properties &^= bit
+	}
+}
+
+// Helper method to check if a property bit is set
+func (f *Format) hasProperty(bit uint8) bool {
+	return f.Properties&bit != 0
 }
 
 func toCss(c termenv.Color) string {
@@ -29,26 +134,25 @@ func toCss(c termenv.Color) string {
 func (f Format) css() string {
 	parts := make([]string, 0)
 	fg, bg := f.Fg, f.Bg
-	if f.Reverse {
+	if f.IsReverse() {
 		bg, fg = fg, bg
 	}
 
 	parts = append(parts, "color:"+toCss(fg))
 	parts = append(parts, "background-color:"+toCss(bg))
-	switch f.Intensity {
-	case Bold:
+	if f.IsBold() {
 		parts = append(parts, "font-weight:bold")
-	case Normal:
-	case Faint:
+	}
+	if f.IsFaint() {
 		parts = append(parts, "opacity:0.33")
 	}
-	if f.Underline {
+	if f.IsUnderline() {
 		parts = append(parts, "text-decoration:underline")
 	}
-	if f.Conceal {
+	if f.IsConceal() {
 		parts = append(parts, "display:none")
 	}
-	if f.Blink {
+	if f.IsBlink() {
 		parts = append(parts, "text-decoration:blink")
 	}
 
@@ -60,26 +164,4 @@ func (f Format) css() string {
 	sort.StringSlice(parts).Sort()
 
 	return strings.Join(parts, ";")
-}
-
-type Intensity int
-
-const (
-	Normal Intensity = 0
-	Bold   Intensity = 1
-	Faint  Intensity = 2
-	// TODO(jaguilar): Should this be in a subpackage, since the names are pretty collide-y?
-)
-
-func (i Intensity) alpha() uint8 {
-	switch i {
-	case Bold:
-		return 255
-	case Normal:
-		return 170
-	case Faint:
-		return 85
-	default:
-		return 170
-	}
 }
