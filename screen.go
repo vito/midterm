@@ -1,6 +1,8 @@
 package midterm
 
-import "time"
+import (
+	"time"
+)
 
 type Screen struct {
 	// Height and Width are the dimensions of the terminal.
@@ -11,6 +13,14 @@ type Screen struct {
 
 	// Format is the display properties of each cell.
 	Format [][]Format
+
+	// Changes counts the number of times each row has been modified so that the
+	// UI can know which content needs to be redrawn.
+	//
+	// Note that this includes changes to the cursor position, in case the cursor
+	// is visible: if the cursor moves from row 0 to row 3, both rows will be
+	// incremented.
+	Changes []uint64
 
 	// Cursor is the current state of the cursor.
 	Cursor Cursor
@@ -54,6 +64,7 @@ func newScreen(h, w int) *Screen {
 func (s *Screen) reset() {
 	s.Content = make([][]rune, s.Height)
 	s.Format = make([][]Format, s.Height)
+	s.Changes = make([]uint64, s.Height)
 	for row := 0; row < s.Height; row++ {
 		s.Content[row] = make([]rune, s.Width)
 		s.Format[row] = make([]Format, s.Width)
@@ -75,6 +86,7 @@ func (v *Screen) resize(h, w int) {
 		for row := 0; row < n; row++ {
 			v.Content = append(v.Content, make([]rune, v.Width))
 			v.Format = append(v.Format, make([]Format, v.Width))
+			v.Changes = append(v.Changes, 0)
 			for col := 0; col < v.Width; col++ {
 				v.clear(v.Height+row, col, Format{})
 			}
@@ -82,6 +94,7 @@ func (v *Screen) resize(h, w int) {
 	} else if h < v.Height {
 		v.Content = v.Content[:h]
 		v.Format = v.Format[:h]
+		v.Changes = v.Changes[:h]
 	}
 
 	if w > v.Width {
@@ -100,6 +113,7 @@ func (v *Screen) resize(h, w int) {
 		for i := range v.Content {
 			v.Content[i] = v.Content[i][:w]
 			v.Format[i] = v.Format[i][:w]
+			v.Changes[i]++
 		}
 	}
 
@@ -114,4 +128,5 @@ func (v *Screen) resize(h, w int) {
 func (v *Screen) clear(y, x int, format Format) {
 	v.Content[y][x] = ' '
 	v.Format[y][x] = format
+	v.Changes[y]++
 }

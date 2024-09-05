@@ -262,6 +262,7 @@ func (v *Terminal) Process(c Command) error {
 // put puts r onto the current cursor's position, then advances the cursor.
 func (v *Terminal) put(r rune) {
 	if v.wrap {
+		v.Changes[v.Cursor.Y]++
 		v.Cursor.X = 0
 		v.Cursor.Y++
 		v.scrollOrResizeYIfNeeded()
@@ -287,6 +288,7 @@ func (v *Terminal) advance() {
 		v.wrap = true
 	} else {
 		v.Cursor.X++
+		v.Changes[v.Cursor.Y]++
 	}
 }
 
@@ -304,6 +306,7 @@ func (v *Terminal) resizeXIfNeeded() {
 			v.Screen.Content[row] = append(v.Screen.Content[row], ' ')
 			v.Screen.Format[row] = append(v.Screen.Format[row], f)
 		}
+		v.Changes[row]++
 	}
 }
 
@@ -339,11 +342,28 @@ func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
 	}
 }
 
+func scrollUpShallow[T any](arr []T, positions, start, end int, empty T) {
+	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
+		return // handle invalid inputs
+	}
+
+	// for i := start; i < end-positions; i++ {
+	for i := start; i < (end+1)-positions; i++ { // +1 fixes weird stuff when shell scrollback exceeds window height
+		arr[i] = arr[i+positions]
+	}
+
+	// Fill the newly scrolled lines with blank runes
+	for i := end - positions + 1; i <= end; i++ { // +1 and <= fixes last line not being cleared
+		arr[i] = empty
+	}
+}
+
 func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
 		return // handle invalid inputs
 	}
 
+	// Shift all rows down
 	for i := end; i >= start+positions; i-- {
 		arr[i] = make([]T, len(arr[i-positions]))
 		copy(arr[i], arr[i-positions])
@@ -355,6 +375,22 @@ func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
 		for j := range arr[i] {
 			arr[i][j] = empty
 		}
+	}
+}
+
+func scrollDownShallow[T any](arr []T, positions, start, end int, empty T) {
+	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
+		return // handle invalid inputs
+	}
+
+	// Shift all rows down
+	for i := end; i >= start+positions; i-- {
+		arr[i] = arr[i-positions]
+	}
+
+	// Fill the newly scrolled lines with blank runes
+	for i := start; i < start+positions; i++ {
+		arr[i] = empty
 	}
 }
 
@@ -377,6 +413,22 @@ func insertLines[T any](arr [][]T, start, ps, scrollStart, scrollEnd int, empty 
 	}
 }
 
+func insertLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, empty T) {
+	if start < 0 || start+ps > len(arr) || ps <= 0 {
+		return // handle invalid inputs
+	}
+
+	// Shift lines down by Ps positions starting from the start position
+	for i := scrollEnd; i >= start+ps; i-- {
+		arr[i] = arr[i-ps]
+	}
+
+	// Fill the newly inserted lines with the empty value
+	for i := start; i < start+ps; i++ {
+		arr[i] = empty
+	}
+}
+
 func deleteLines[T any](arr [][]T, start, ps, scrollStart, scrollEnd int, empty T) {
 	if start < 0 || start+ps > len(arr) || ps <= 0 {
 		return // handle invalid inputs
@@ -395,6 +447,24 @@ func deleteLines[T any](arr [][]T, start, ps, scrollStart, scrollEnd int, empty 
 		for j := range arr[i] {
 			arr[i][j] = empty
 		}
+	}
+}
+
+func deleteLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, empty T) {
+	if start < 0 || start+ps > len(arr) || ps <= 0 {
+		return // handle invalid inputs
+	}
+
+	// Delete Ps lines starting from the start position
+	copy(
+		arr[start:scrollEnd],
+		arr[start+ps:],
+	)
+
+	// Fill the end lines with the empty value
+	fillStart := scrollEnd - ps
+	for i := fillStart + 1; i < scrollEnd+1; i++ {
+		arr[i] = empty
 	}
 }
 
@@ -478,23 +548,27 @@ func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
 func (v *Terminal) insertCharacters(n int) {
 	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	insertEmpties(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
+	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) deleteCharacters(n int) {
 	v.wrap = false // delete characters resets the wrap state.
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	deleteCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
+	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) repeatPrecedingCharacter(n int) {
 	repeatPrecedingCharacter(v.Content, v.Cursor.Y, v.Cursor.X, n)
 	repeatPrecedingCharacter(v.Format, v.Cursor.Y, v.Cursor.X, n)
+	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) eraseCharacters(n int) {
 	v.wrap = false // erase characters resets the wrap state.
 	eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	eraseCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
+	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) insertLines(n int) {
@@ -505,6 +579,7 @@ func (v *Terminal) insertLines(n int) {
 	v.wrap = false
 	insertLines(v.Content, v.Cursor.Y, n, start, end, ' ')
 	insertLines(v.Format, v.Cursor.Y, n, start, end, v.Cursor.F)
+	insertLinesShallow(v.Changes, v.Cursor.Y, n, start, end, 0)
 }
 
 func (v *Terminal) deleteLines(n int) {
@@ -515,6 +590,7 @@ func (v *Terminal) deleteLines(n int) {
 	v.wrap = false // delete lines resets the wrap state.
 	deleteLines(v.Content, v.Cursor.Y, n, start, end, ' ')
 	deleteLines(v.Format, v.Cursor.Y, n, start, end, v.Cursor.F)
+	deleteLinesShallow(v.Changes, v.Cursor.Y, n, start, end, 0)
 }
 
 func (v *Terminal) scrollDownN(n int) {
@@ -522,6 +598,7 @@ func (v *Terminal) scrollDownN(n int) {
 	start, end := v.scrollRegion()
 	scrollDown(v.Content, n, start, end, ' ')
 	scrollDown(v.Format, n, start, end, v.Cursor.F)
+	scrollDownShallow(v.Changes, n, start, end, 0)
 }
 
 func (v *Terminal) scrollUpN(n int) {
@@ -534,6 +611,7 @@ func (v *Terminal) scrollUpN(n int) {
 	start, end := v.scrollRegion()
 	scrollUp(v.Content, n, start, end, ' ')
 	scrollUp(v.Format, n, start, end, v.Cursor.F)
+	scrollUpShallow(v.Changes, n, start, end, 0)
 }
 
 func (v *Terminal) scrollRegion() (int, int) {
@@ -552,8 +630,10 @@ func (v *Terminal) scrollOne() {
 // home moves the cursor to the coordinates y x. If y x are out of bounds, v.Err
 // is set.
 func (v *Terminal) home(y, x int) {
+	v.Changes[v.Cursor.Y]++
 	v.wrap = false // cursor movement always resets the wrap state.
 	v.Cursor.Y, v.Cursor.X = y, x
+	v.Changes[v.Cursor.Y]++
 }
 
 // eraseDirection is the logical direction in which an erase command happens,
@@ -627,6 +707,7 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 }
 
 func (v *Terminal) backspace() {
+	v.Changes[v.Cursor.Y]++
 	v.Cursor.X--
 	if v.Cursor.X < 0 {
 		if v.Cursor.Y == 0 {
@@ -638,6 +719,7 @@ func (v *Terminal) backspace() {
 			} else {
 				v.Cursor.X = v.Width - 1
 			}
+			v.Changes[v.Cursor.Y]++
 		}
 	}
 }
@@ -648,7 +730,9 @@ func (v *Terminal) moveDown() {
 		// moving the cursor
 		v.scrollUpN(1)
 	} else {
+		v.Changes[v.Cursor.Y]++
 		v.Cursor.Y++
+		v.Changes[v.Cursor.Y]++
 	}
 }
 
@@ -658,7 +742,9 @@ func (v *Terminal) moveUp() {
 		// moving the cursor
 		v.scrollDownN(1)
 	} else {
+		v.Changes[v.Cursor.Y]++
 		v.Cursor.Y--
+		v.Changes[v.Cursor.Y]++
 	}
 }
 

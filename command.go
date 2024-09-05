@@ -801,13 +801,16 @@ func (c controlCommand) display(v *Terminal) error {
 		v.backspace()
 	case carriageReturn:
 		v.Cursor.X = 0
+		v.Changes[v.Cursor.Y]++
 		v.wrap = false
 	case linefeed:
+		v.Changes[v.Cursor.Y]++
 		if !v.Raw {
 			// in "cooked" mode, commonly used for displaying logs, \n implies \r\n
 			v.Cursor.X = 0
 		}
 		v.moveDown()
+		v.Changes[v.Cursor.Y]++
 	case horizontalTab:
 		target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
 		if !v.AutoResizeX && target >= v.Width {
