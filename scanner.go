@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"sync"
 	"unicode"
 )
 
@@ -54,6 +55,12 @@ var (
 	csEnd = &unicode.RangeTable{R16: []unicode.Range16{{Lo: 64, Hi: 126, Stride: 1}}}
 )
 
+var bufPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 // scanEscapeCommand scans to the end of the current escape sequence. The scanner
 // must be positioned at an escape rune (esc or the unicode CSI).
 func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
@@ -73,7 +80,12 @@ func scanEscapeCommand(s io.RuneScanner) (Command, []rune, error) {
 	// pessimistically keep track of everything we read
 	unparsed := []rune{esc}
 
-	var args bytes.Buffer
+	args := bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		args.Reset()
+		bufPool.Put(args)
+	}()
+
 	quote := false
 	for i := 0; ; i++ {
 		r, _, err := s.ReadRune()
