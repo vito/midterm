@@ -732,6 +732,7 @@ func (v *Terminal) moveDown() {
 	} else {
 		v.Changes[v.Cursor.Y]++
 		v.Cursor.Y++
+		v.scrollOrResizeYIfNeeded()
 		v.Changes[v.Cursor.Y]++
 	}
 }
