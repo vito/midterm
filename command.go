@@ -475,13 +475,17 @@ func unsave(v *Terminal, _ []string) error {
 	return nil
 }
 
-var Reset = Format{Properties: ResetBit}
+var ResetFormat = &Format{Properties: ResetBit}
+
+var EmptyFormat = &Format{}
 
 // A command to update the attributes of the cursor based on the arg list.
 func updateAttributes(v *Terminal, args []string) error {
-	f := &v.Cursor.F
+	cp := *v.Cursor.F
+	v.Cursor.F = &cp
+
 	if len(args) == 0 {
-		*f = Reset
+		v.Cursor.F = ResetFormat
 		return nil
 	}
 
@@ -506,46 +510,46 @@ func updateAttributes(v *Terminal, args []string) error {
 
 		switch x {
 		case 0:
-			*f = Reset
+			v.Cursor.F = ResetFormat
 		case 1:
-			f.SetBold(true)
-			f.SetFaint(false)
+			v.Cursor.F.SetBold(true)
+			v.Cursor.F.SetFaint(false)
 		case 2:
-			f.SetBold(false)
-			f.SetFaint(true)
+			v.Cursor.F.SetBold(false)
+			v.Cursor.F.SetFaint(true)
 		case 3:
-			f.SetItalic(true)
+			v.Cursor.F.SetItalic(true)
 		case 22:
-			f.SetBold(false)
-			f.SetFaint(false)
+			v.Cursor.F.SetBold(false)
+			v.Cursor.F.SetFaint(false)
 		case 4:
-			f.SetUnderline(true)
+			v.Cursor.F.SetUnderline(true)
 		case 24:
-			f.SetUnderline(false)
+			v.Cursor.F.SetUnderline(false)
 		case 5, 6:
-			f.SetBlink(true)
+			v.Cursor.F.SetBlink(true)
 		case 25:
-			f.SetBlink(false)
+			v.Cursor.F.SetBlink(false)
 		case 7:
-			f.SetReverse(true)
+			v.Cursor.F.SetReverse(true)
 		case 27:
-			f.SetReverse(false)
+			v.Cursor.F.SetReverse(false)
 		case 8:
-			f.SetConceal(true)
+			v.Cursor.F.SetConceal(true)
 		case 28:
-			f.SetConceal(false)
+			v.Cursor.F.SetConceal(false)
 		case 30, 31, 32, 33, 34, 35, 36, 37:
-			f.Fg = termenv.ANSIColor(x - 30)
+			v.Cursor.F.Fg = termenv.ANSIColor(x - 30)
 		case 39:
-			f.Fg = nil
+			v.Cursor.F.Fg = nil
 		case 90, 91, 92, 93, 94, 95, 96, 97:
-			f.Fg = termenv.ANSIColor(x-90) + termenv.ANSIBrightBlack
+			v.Cursor.F.Fg = termenv.ANSIColor(x-90) + termenv.ANSIBrightBlack
 		case 40, 41, 42, 43, 44, 45, 46, 47:
-			f.Bg = termenv.ANSIColor(x - 40)
+			v.Cursor.F.Bg = termenv.ANSIColor(x - 40)
 		case 49:
-			f.Bg = nil
+			v.Cursor.F.Bg = nil
 		case 100, 101, 102, 103, 104, 105, 106, 107:
-			f.Bg = termenv.ANSIColor(x-100) + termenv.ANSIBrightBlack
+			v.Cursor.F.Bg = termenv.ANSIColor(x-100) + termenv.ANSIBrightBlack
 		case 38, 48: // 256-color foreground/background
 			bg := x == 48
 
@@ -604,9 +608,9 @@ func updateAttributes(v *Terminal, args []string) error {
 			}
 
 			if bg {
-				f.Bg = color
+				v.Cursor.F.Bg = color
 			} else {
-				f.Fg = color
+				v.Cursor.F.Fg = color
 			}
 		default:
 			unsupported = append(unsupported, x)
@@ -814,7 +818,7 @@ func (c controlCommand) display(v *Terminal) error {
 		if !v.AutoResizeX && target >= v.Width {
 			target = v.Width - 1
 		}
-		formatY := v.Format[v.Cursor.Y]
+		formatY := v.Format[v.Cursor.Y] // TODO: use v.Cursor.F?
 		format := formatY[v.Cursor.X]
 		for x := v.Cursor.X; x < target; x++ {
 			if v.AutoResizeX {

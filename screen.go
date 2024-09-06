@@ -12,7 +12,7 @@ type Screen struct {
 	Content [][]rune
 
 	// Format is the display properties of each cell.
-	Format [][]Format
+	Format [][]*Format
 
 	// Changes counts the number of times each row has been modified so that the
 	// UI can know which content needs to be redrawn.
@@ -56,6 +56,12 @@ func newScreen(h, w int) *Screen {
 
 		// start at -1 so there's no "used" height until first write
 		MaxY: -1,
+
+		Cursor: Cursor{
+			X: 0,
+			Y: 0,
+			F: EmptyFormat,
+		},
 	}
 	s.reset()
 	return s
@@ -63,13 +69,14 @@ func newScreen(h, w int) *Screen {
 
 func (s *Screen) reset() {
 	s.Content = make([][]rune, s.Height)
-	s.Format = make([][]Format, s.Height)
+	s.Format = make([][]*Format, s.Height)
 	s.Changes = make([]uint64, s.Height)
 	for row := 0; row < s.Height; row++ {
 		s.Content[row] = make([]rune, s.Width)
-		s.Format[row] = make([]Format, s.Width)
+		s.Format[row] = make([]*Format, s.Width)
 		for col := 0; col < s.Width; col++ {
 			s.Content[row][col] = ' '
+			s.Format[row][col] = EmptyFormat
 		}
 	}
 	s.Cursor.X = 0
@@ -85,10 +92,10 @@ func (v *Screen) resize(h, w int) {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
 			v.Content = append(v.Content, make([]rune, v.Width))
-			v.Format = append(v.Format, make([]Format, v.Width))
+			v.Format = append(v.Format, make([]*Format, v.Width))
 			v.Changes = append(v.Changes, 0)
 			for col := 0; col < v.Width; col++ {
-				v.clear(v.Height+row, col, Format{})
+				v.clear(v.Height+row, col, EmptyFormat)
 			}
 		}
 	} else if h < v.Height {
@@ -102,11 +109,11 @@ func (v *Screen) resize(h, w int) {
 			row := make([]rune, w)
 			copy(row, v.Content[i])
 			v.Content[i] = row
-			format := make([]Format, w)
+			format := make([]*Format, w)
 			copy(format, v.Format[i])
 			v.Format[i] = format
 			for j := v.Width; j < w; j++ {
-				v.clear(i, j, Format{})
+				v.clear(i, j, &Format{})
 			}
 		}
 	} else if w < v.Width {
@@ -125,7 +132,7 @@ func (v *Screen) resize(h, w int) {
 	}
 }
 
-func (v *Screen) clear(y, x int, format Format) {
+func (v *Screen) clear(y, x int, format *Format) {
 	v.Content[y][x] = ' '
 	v.Format[y][x] = format
 	v.Changes[y]++

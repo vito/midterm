@@ -14,15 +14,15 @@ func (v *Terminal) HTML() string {
 	// Iterate each row. When the css changes, close the previous span, and open
 	// a new one. No need to close a span when the css is empty, we won't have
 	// opened one in the past.
-	var lastFormat Format
+	lastFormat := EmptyFormat
 	for y, row := range v.Content {
 		for x, r := range row {
 			f := v.Format[y][x]
 			if f != lastFormat {
-				if lastFormat != (Format{}) {
+				if lastFormat != EmptyFormat {
 					buf.WriteString("</span>")
 				}
-				if f != (Format{}) {
+				if f != EmptyFormat {
 					buf.WriteString(`<span style="` + f.css() + `">`)
 				}
 				lastFormat = f

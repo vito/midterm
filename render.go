@@ -32,12 +32,12 @@ func (vt *Terminal) RenderLine(w io.Writer, row int) error {
 
 type Line struct {
 	Content []rune
-	Format  []Format
+	Format  []*Format
 }
 
 func (line Line) Display() string {
 	out := ""
-	var lastFormat Format
+	lastFormat := EmptyFormat
 	for col, r := range line.Content {
 		f := line.Format[col]
 		if f != lastFormat {
@@ -54,7 +54,7 @@ func (vt *Terminal) renderLine(w io.Writer, row int) error {
 		return fmt.Errorf("line %d exceeds content height", row)
 	}
 
-	var lastFormat Format
+	lastFormat := EmptyFormat
 	line := vt.Content[row]
 	for col, r := range line {
 		f := vt.Format[row][col]

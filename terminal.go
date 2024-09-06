@@ -66,7 +66,7 @@ type Cursor struct {
 	Y, X int
 
 	// F is the format that will be displayed.
-	F Format
+	F *Format
 }
 
 // ScrollRegion represents a region of the terminal that is
@@ -298,9 +298,11 @@ func (v *Terminal) resizeXIfNeeded() {
 	row := v.Cursor.Y
 	if v.AutoResizeX && target >= len(v.Screen.Content[row]) {
 		formats := v.Screen.Format[row]
-		var f Format
+		var f *Format
 		if len(formats) > 0 {
 			f = formats[min(v.Cursor.X, len(formats)-1)]
+		} else {
+			f = EmptyFormat
 		}
 		for i := 0; i <= (target+1)-len(v.Screen.Content[row]); i++ {
 			v.Screen.Content[row] = append(v.Screen.Content[row], ' ')
