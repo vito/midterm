@@ -818,8 +818,7 @@ func (c controlCommand) display(v *Terminal) error {
 		if !v.AutoResizeX && target >= v.Width {
 			target = v.Width - 1
 		}
-		formatY := v.Format[v.Cursor.Y] // TODO: use v.Cursor.F?
-		format := formatY[v.Cursor.X]
+		format := v.Cursor.F
 		for x := v.Cursor.X; x < target; x++ {
 			if v.AutoResizeX {
 				v.resizeXIfNeeded()

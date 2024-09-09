@@ -11,8 +11,8 @@ type Screen struct {
 	// Content is the text in the terminal.
 	Content [][]rune
 
-	// Format is the display properties of each cell.
-	Format [][]*Format
+	// Format contains the display properties of each cell.
+	Format *Canvas
 
 	// Changes counts the number of times each row has been modified so that the
 	// UI can know which content needs to be redrawn.
@@ -69,14 +69,17 @@ func newScreen(h, w int) *Screen {
 
 func (s *Screen) reset() {
 	s.Content = make([][]rune, s.Height)
-	s.Format = make([][]*Format, s.Height)
+	s.Format = new(Canvas)
 	s.Changes = make([]uint64, s.Height)
 	for row := 0; row < s.Height; row++ {
 		s.Content[row] = make([]rune, s.Width)
-		s.Format[row] = make([]*Format, s.Width)
 		for col := 0; col < s.Width; col++ {
 			s.Content[row][col] = ' '
-			s.Format[row][col] = EmptyFormat
+			s.Format.Paint(Cursor{
+				X: col,
+				Y: row,
+				F: EmptyFormat,
+			})
 		}
 	}
 	s.Cursor.X = 0
@@ -88,19 +91,24 @@ func (v *Screen) resize(h, w int) {
 		v.MaxY = h - 1
 	}
 
+	v.Format.Resize(h, w)
+
 	if h > v.Height {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
 			v.Content = append(v.Content, make([]rune, v.Width))
-			v.Format = append(v.Format, make([]*Format, v.Width))
 			v.Changes = append(v.Changes, 0)
 			for col := 0; col < v.Width; col++ {
 				v.clear(v.Height+row, col, EmptyFormat)
+				v.Format.Paint(Cursor{
+					X: col,
+					Y: row,
+					F: EmptyFormat,
+				})
 			}
 		}
 	} else if h < v.Height {
 		v.Content = v.Content[:h]
-		v.Format = v.Format[:h]
 		v.Changes = v.Changes[:h]
 	}
 
@@ -109,9 +117,6 @@ func (v *Screen) resize(h, w int) {
 			row := make([]rune, w)
 			copy(row, v.Content[i])
 			v.Content[i] = row
-			format := make([]*Format, w)
-			copy(format, v.Format[i])
-			v.Format[i] = format
 			for j := v.Width; j < w; j++ {
 				v.clear(i, j, &Format{})
 			}
@@ -119,7 +124,6 @@ func (v *Screen) resize(h, w int) {
 	} else if w < v.Width {
 		for i := range v.Content {
 			v.Content[i] = v.Content[i][:w]
-			v.Format[i] = v.Format[i][:w]
 			v.Changes[i]++
 		}
 	}
@@ -134,6 +138,10 @@ func (v *Screen) resize(h, w int) {
 
 func (v *Screen) clear(y, x int, format *Format) {
 	v.Content[y][x] = ' '
-	v.Format[y][x] = format
+	v.Format.Paint(Cursor{
+		X: x,
+		Y: y,
+		F: EmptyFormat,
+	})
 	v.Changes[y]++
 }
