@@ -172,6 +172,193 @@ func (r Region) String() string {
 	return fmt.Sprintf("%s:%d", r.F.Render(), r.Size)
 }
 
+func (canvas *Canvas) Region(row, col int) *Region {
+	// Ensure the row exists
+	if row >= len(canvas.rows) || row < 0 {
+		return nil // Row does not exist
+	}
+
+	rowRegions := canvas.rows[row]
+	current := rowRegions.Head
+	position := 0
+
+	// Traverse through the regions in the specified row
+	for current != nil {
+		// Check if the column falls within the current region
+		if position <= col && col < position+current.Region.Size {
+			return current.Region // Found the region containing the column
+		}
+
+		// Move to the next region
+		position += current.Region.Size
+		current = current.Next
+	}
+
+	// If we reach here, the column is out of bounds
+	return nil
+}
+
+func (canvas *Canvas) Insert(cursor Cursor, n int) {
+	// Ensure the row exists
+	for len(canvas.rows) <= cursor.Y {
+		canvas.rows = append(canvas.rows, &Row{})
+	}
+
+	row := canvas.rows[cursor.Y]
+	cursorX := cursor.X
+	position := 0
+	current := row.Head
+	var previous *RegionNode
+
+	// Traverse until we find where the cursor is or the list ends
+	for current != nil && position+current.Region.Size <= cursorX {
+		position += current.Region.Size
+		previous = current
+		current = current.Next
+	}
+
+	// Case 1: Cursor inside or at the boundary of an existing region
+	if current != nil && position <= cursorX && cursorX < position+current.Region.Size {
+		// Split the current region if necessary
+		if position < cursorX {
+			// Create a new region for the part before the cursor
+			newRegionBefore := &RegionNode{
+				Region: &Region{
+					F:    current.Region.F,
+					Size: cursorX - position,
+				},
+			}
+
+			if previous != nil {
+				previous.Next = newRegionBefore
+			} else {
+				row.Head = newRegionBefore
+			}
+
+			previous = newRegionBefore
+			newRegionBefore.Next = current
+		}
+
+		// Adjust the current region for the part after the cursor
+		remainingRegionSize := (position + current.Region.Size) - cursorX
+		if remainingRegionSize > 0 {
+			// Move the current region after the inserted region
+			newRegionAfter := &RegionNode{
+				Region: &Region{
+					F:    current.Region.F,
+					Size: remainingRegionSize,
+				},
+			}
+
+			current.Region.Size = 0 // The current part before the split is now handled by the new region
+			newRegionAfter.Next = current.Next
+			current = newRegionAfter
+		} else {
+			// If nothing is left in the current region, remove it
+			current = current.Next
+		}
+	}
+
+	// Case 2: Insert the new region at the cursor position
+	newFormatRegion := &RegionNode{
+		Region: &Region{
+			F:    cursor.F,
+			Size: n,
+		},
+	}
+
+	if previous != nil {
+		previous.Next = newFormatRegion
+	} else {
+		// This is the new head
+		row.Head = newFormatRegion
+	}
+
+	newFormatRegion.Next = current
+
+	// Update the tail if the current is nil
+	if current == nil {
+		row.Tail = newFormatRegion
+	}
+}
+
+func (canvas *Canvas) Delete(cursor Cursor, n int) {
+	// Ensure the row exists
+	if cursor.Y >= len(canvas.rows) {
+		return // Row does not exist, nothing to delete
+	}
+
+	row := canvas.rows[cursor.Y]
+	cursorX := cursor.X
+	position := 0
+	current := row.Head
+	var previous *RegionNode
+
+	// Traverse until we find where the cursor is or the list ends
+	for current != nil && position+current.Region.Size <= cursorX {
+		position += current.Region.Size
+		previous = current
+		current = current.Next
+	}
+
+	// If cursor is beyond the current content, nothing to delete
+	if current == nil {
+		return
+	}
+
+	// Case 1: Cursor inside or at the boundary of an existing region
+	if position <= cursorX && cursorX < position+current.Region.Size {
+		// Calculate how many cells to delete from the current region
+		deleteCount := min(n, (position+current.Region.Size)-cursorX)
+
+		// If the current region has more cells than we're deleting, just reduce the size
+		if deleteCount < current.Region.Size {
+			current.Region.Size -= deleteCount
+		} else {
+			// Remove the current region if it's fully consumed
+			if previous != nil {
+				previous.Next = current.Next
+			} else {
+				// If there's no previous, we are removing the head
+				row.Head = current.Next
+			}
+
+			// Update the tail if necessary
+			if current.Next == nil {
+				row.Tail = previous
+			}
+		}
+
+		// Reduce the number of cells left to delete
+		n -= deleteCount
+		current = current.Next
+	}
+
+	// Case 2: Continue deleting from subsequent regions if `n > 0`
+	for n > 0 && current != nil {
+		if current.Region.Size <= n {
+			// If the entire region is deleted, remove it
+			n -= current.Region.Size
+			if previous != nil {
+				previous.Next = current.Next
+			} else {
+				row.Head = current.Next
+			}
+
+			// Update the tail if necessary
+			if current.Next == nil {
+				row.Tail = previous
+			}
+
+			current = current.Next
+		} else {
+			// Partially delete this region
+			current.Region.Size -= n
+			n = 0
+		}
+	}
+}
+
 func (canvas *Canvas) Paint(cursor Cursor) {
 	// Ensure the row exists
 	for len(canvas.rows) <= cursor.Y {
