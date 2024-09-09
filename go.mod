@@ -1,6 +1,6 @@
 module github.com/vito/midterm
 
-go 1.21
+go 1.23
 
 require (
 	github.com/charmbracelet/bubbletea v0.24.2

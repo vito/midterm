@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/muesli/termenv"
 )
@@ -54,28 +53,16 @@ func (vt *Terminal) renderLine(w io.Writer, row int) error {
 		return fmt.Errorf("line %d exceeds content height", row)
 	}
 
-	var lastFormat Format
-	line := vt.Content[row]
-	for col, r := range line {
-		f := vt.Format[row][col]
-
-		if vt.CursorVisible && row == vt.Cursor.Y && col == vt.Cursor.X {
-			f.SetReverse(vt.CursorBlinkEpoch == nil ||
-				int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0)
-		}
-
-		if f != lastFormat {
-			lastFormat = f
-			_, err := w.Write([]byte(f.Render()))
-			if err != nil {
-				return err
-			}
-		}
-
-		_, err := w.Write([]byte(string(r)))
-		if err != nil {
-			return err
-		}
+	for region := range vt.Format.Regions(row) {
+		var x int
+		w.Write([]byte(region.F.Render()))
+		fmt.Fprint(w, string(vt.Content[row][x:x+region.Size]))
+		x += region.Size
+		// TODO:
+		// if vt.CursorVisible && row == vt.Cursor.Y && col == vt.Cursor.X {
+		// 	f.SetReverse(vt.CursorBlinkEpoch == nil ||
+		// 		int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0)
+		// }
 	}
 
 	_, err := fmt.Fprint(w, resetSeq)

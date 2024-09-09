@@ -222,6 +222,11 @@ func (v *Terminal) Write(dt []byte) (n int, rerr error) {
 
 	buf := bytes.NewBuffer(dt)
 	for buf.Len() > 0 {
+		// nextLine := bytes.IndexByte(buf.Bytes(), '\n')
+		// if nextLine == -1 {
+		// 	nextLine = buf.Len()
+		// }
+		//
 		cmd, unparsed, err := Decode(buf)
 		if err != nil {
 			dbg.Printf("LEAVING UNPARSED: %q FOR ERR: %s", string(unparsed), err)
@@ -270,7 +275,7 @@ func (v *Terminal) put(r rune) {
 	}
 	x, y := v.Cursor.X, v.Cursor.Y
 	v.Content[y][x] = r
-	v.Format[y][x] = v.Cursor.F
+	v.Format.Paint(v.Cursor)
 	if y > v.MaxY {
 		// track max character offset for UsedHeight()
 		v.MaxY = y
@@ -296,16 +301,18 @@ func (v *Terminal) resizeXIfNeeded() {
 	// +1 because printing advances the cursor, and this is called before the print
 	target := v.Cursor.X + 1
 	row := v.Cursor.Y
-	if v.AutoResizeX && target >= len(v.Screen.Content[row]) {
-		formats := v.Screen.Format[row]
-		var f Format
-		if len(formats) > 0 {
-			f = formats[min(v.Cursor.X, len(formats)-1)]
+	content := v.Screen.Content[row]
+	if v.AutoResizeX && target > len(content) {
+		spaces := make([]rune, target-len(content))
+		for i := range spaces {
+			spaces[i] = ' '
+			v.Format.Paint(Cursor{
+				X: v.Cursor.X + (i + 1),
+				Y: row,
+				F: v.Cursor.F,
+			})
 		}
-		for i := 0; i <= (target+1)-len(v.Screen.Content[row]); i++ {
-			v.Screen.Content[row] = append(v.Screen.Content[row], ' ')
-			v.Screen.Format[row] = append(v.Screen.Format[row], f)
-		}
+		v.Screen.Content[row] = append(content, spaces...)
 		v.Changes[row]++
 	}
 }
@@ -547,27 +554,27 @@ func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
 
 func (v *Terminal) insertCharacters(n int) {
 	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
-	insertEmpties(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
+	// insertEmpties(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
 	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) deleteCharacters(n int) {
 	v.wrap = false // delete characters resets the wrap state.
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
-	deleteCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
+	// deleteCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
 	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) repeatPrecedingCharacter(n int) {
 	repeatPrecedingCharacter(v.Content, v.Cursor.Y, v.Cursor.X, n)
-	repeatPrecedingCharacter(v.Format, v.Cursor.Y, v.Cursor.X, n)
+	// repeatPrecedingCharacter(v.Format, v.Cursor.Y, v.Cursor.X, n)
 	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) eraseCharacters(n int) {
 	v.wrap = false // erase characters resets the wrap state.
 	eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
-	eraseCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
+	// eraseCharacters(v.Format, v.Cursor.Y, v.Cursor.X, n, v.Cursor.F)
 	v.Changes[v.Cursor.Y]++
 }
 
@@ -578,7 +585,7 @@ func (v *Terminal) insertLines(n int) {
 	}
 	v.wrap = false
 	insertLines(v.Content, v.Cursor.Y, n, start, end, ' ')
-	insertLines(v.Format, v.Cursor.Y, n, start, end, v.Cursor.F)
+	// insertLines(v.Format, v.Cursor.Y, n, start, end, v.Cursor.F)
 	insertLinesShallow(v.Changes, v.Cursor.Y, n, start, end, 0)
 }
 
@@ -589,7 +596,7 @@ func (v *Terminal) deleteLines(n int) {
 	}
 	v.wrap = false // delete lines resets the wrap state.
 	deleteLines(v.Content, v.Cursor.Y, n, start, end, ' ')
-	deleteLines(v.Format, v.Cursor.Y, n, start, end, v.Cursor.F)
+	// deleteLines(v.Format, v.Cursor.Y, n, start, end, v.Cursor.F)
 	deleteLinesShallow(v.Changes, v.Cursor.Y, n, start, end, 0)
 }
 
@@ -597,20 +604,20 @@ func (v *Terminal) scrollDownN(n int) {
 	v.wrap = false // scroll down resets the wrap state.
 	start, end := v.scrollRegion()
 	scrollDown(v.Content, n, start, end, ' ')
-	scrollDown(v.Format, n, start, end, v.Cursor.F)
+	// scrollDown(v.Format, n, start, end, v.Cursor.F)
 	scrollDownShallow(v.Changes, n, start, end, 0)
 }
 
 func (v *Terminal) scrollUpN(n int) {
 	if v.onScrollback != nil {
 		for i := 0; i < n; i++ {
-			v.onScrollback(Line{v.Content[i], v.Format[i]})
+			// v.onScrollback(Line{v.Content[i], v.Format[i]})
 		}
 	}
 	// v.wrap = false // scroll up does NOT reset the wrap state.
 	start, end := v.scrollRegion()
 	scrollUp(v.Content, n, start, end, ' ')
-	scrollUp(v.Format, n, start, end, v.Cursor.F)
+	// scrollUp(v.Format.Lines, n, start, end, v.Cursor.F)
 	scrollUpShallow(v.Changes, n, start, end, 0)
 }
 

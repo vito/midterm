@@ -476,6 +476,7 @@ func unsave(v *Terminal, _ []string) error {
 }
 
 var Reset = Format{Properties: ResetBit}
+var EmptyFormat = Format{}
 
 // A command to update the attributes of the cursor based on the arg list.
 func updateAttributes(v *Terminal, args []string) error {
@@ -814,8 +815,7 @@ func (c controlCommand) display(v *Terminal) error {
 		if !v.AutoResizeX && target >= v.Width {
 			target = v.Width - 1
 		}
-		formatY := v.Format[v.Cursor.Y]
-		format := formatY[v.Cursor.X]
+		format := v.Cursor.F
 		for x := v.Cursor.X; x < target; x++ {
 			if v.AutoResizeX {
 				v.resizeXIfNeeded()
