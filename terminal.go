@@ -714,7 +714,7 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	if y1 > y2 {
 		y1, y2 = y2, y1
 	}
-	if x1 > x2 {
+	if x1 > x2 && x2 > 0 {
 		x1, x2 = x2, x1
 	}
 	f := v.Cursor.F
