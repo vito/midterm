@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sebdah/goldie/v2"
@@ -52,9 +53,24 @@ func goldenTest(t *testing.T, name string) {
 		require.NoError(t, err)
 
 		framePath := filepath.Join("frames", name, fmt.Sprintf("%05d", frame))
+		expected, err := os.ReadFile(filepath.Join("testdata", framePath) + ".golden")
+		require.NoError(t, err)
 		g.Assert(t, framePath, buf.Bytes())
 		if t.Failed() {
-			t.Logf("frame mismatch: %d", frame)
+			t.Logf("frame mismatch: %d, after writing: %q", frame, string(segment))
+			eRows := strings.Split(string(expected), "\n")
+			aRows := strings.Split(buf.String(), "\n")
+			for i := 0; i < len(eRows); i++ {
+				if i >= len(aRows) {
+					t.Logf("expected: %q", eRows[i])
+					t.Logf("actual: nothing")
+					break
+				}
+				if eRows[i] != aRows[i] {
+					t.Logf("expected: %q", eRows[i])
+					t.Logf("actual  : %q", aRows[i])
+				}
+			}
 			// t.FailNow()
 		}
 

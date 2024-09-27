@@ -94,11 +94,6 @@ func (v *Screen) resize(h, w int) {
 			v.Changes = append(v.Changes, 0)
 			for col := 0; col < v.Width; col++ {
 				v.clear(v.Height+row, col, EmptyFormat)
-				v.Format.Paint(Cursor{
-					X: col,
-					Y: row,
-					F: EmptyFormat,
-				})
 			}
 		}
 	} else if h < v.Height {
@@ -135,7 +130,7 @@ func (v *Screen) clear(y, x int, format Format) {
 	v.Format.Paint(Cursor{
 		X: x,
 		Y: y,
-		F: EmptyFormat,
+		F: format,
 	})
 	v.Changes[y]++
 }

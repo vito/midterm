@@ -209,6 +209,8 @@ func (v *Terminal) Write(dt []byte) (n int, rerr error) {
 		if err := recover(); err != nil {
 			log.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
 			log.Writer().Write(debug.Stack())
+			dbg.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
+			dbg.Writer().Write(debug.Stack())
 		}
 	}()
 

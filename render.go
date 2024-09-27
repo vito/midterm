@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/muesli/termenv"
 )
@@ -48,21 +49,34 @@ func (line Line) Display() string {
 	return out
 }
 
+var ReverseFormat = Format{Properties: ReverseBit}
+
 func (vt *Terminal) renderLine(w io.Writer, row int) error {
 	if row >= len(vt.Content) {
 		return fmt.Errorf("line %d exceeds content height", row)
 	}
 
+	var pos int
+	lastFormat := EmptyFormat
 	for region := range vt.Format.Regions(row) {
-		var x int
-		w.Write([]byte(region.F.Render()))
-		fmt.Fprint(w, string(vt.Content[row][x:x+region.Size]))
-		x += region.Size
-		// TODO:
-		// if vt.CursorVisible && row == vt.Cursor.Y && col == vt.Cursor.X {
-		// 	f.SetReverse(vt.CursorBlinkEpoch == nil ||
-		// 		int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0)
-		// }
+		if region.F != lastFormat {
+			lastFormat = region.F
+			fmt.Fprint(w, region.F.Render())
+		}
+		line := vt.Content[row]
+		if vt.CursorVisible && row == vt.Cursor.Y && vt.Cursor.X >= pos && vt.Cursor.X < pos+region.Size &&
+			(vt.CursorBlinkEpoch == nil || int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0) {
+			fmt.Fprint(w, string(line[:vt.Cursor.X-pos]))
+			fmt.Fprint(w, "\x1b[7m")
+			fmt.Fprint(w, string(line[vt.Cursor.X]))
+			fmt.Fprint(w, "\x1b[27m")
+			fmt.Fprint(w, string(line[vt.Cursor.X+1:pos+region.Size]))
+		} else {
+			content := string(line[pos : pos+region.Size])
+			fmt.Fprint(w, content)
+		}
+		// fmt.Fprintf(w, "region: %q", string(vt.Content[row][x:x+region.Size]))
+		pos += region.Size
 	}
 
 	_, err := fmt.Fprint(w, resetSeq)
