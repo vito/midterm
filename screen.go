@@ -63,7 +63,7 @@ func newScreen(h, w int) *Screen {
 
 func (s *Screen) reset() {
 	s.Content = make([][]rune, s.Height)
-	s.Format = new(Canvas)
+	s.Format = &Canvas{Width: s.Width}
 	s.Changes = make([]uint64, s.Height)
 	for row := 0; row < s.Height; row++ {
 		s.Content[row] = make([]rune, s.Width)

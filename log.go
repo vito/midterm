@@ -21,3 +21,7 @@ func init() {
 
 	dbg = log.New(logDest, "", log.LstdFlags)
 }
+
+func DebugLogsTo(w io.Writer) {
+	dbg.SetOutput(w)
+}

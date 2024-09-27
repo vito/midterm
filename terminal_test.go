@@ -43,7 +43,10 @@ func goldenTest(t *testing.T, name string) {
 	g := goldie.New(t)
 
 	vt := midterm.NewTerminal(24, 120)
-	err = eachNthFrame(buf, skipFrames, func(frame int, segment []byte) error {
+	eachNthFrame(buf, skipFrames, func(frame int, segment []byte) {
+		frameLogs := new(bytes.Buffer)
+		midterm.DebugLogsTo(frameLogs)
+
 		n, err := vt.Write(segment)
 		require.NoError(t, err)
 		require.Equal(t, len(segment), n)
@@ -52,67 +55,67 @@ func goldenTest(t *testing.T, name string) {
 		err = vt.Render(buf)
 		require.NoError(t, err)
 
-		framePath := filepath.Join("frames", name, fmt.Sprintf("%05d", frame))
-		expected, err := os.ReadFile(filepath.Join("testdata", framePath) + ".golden")
-		require.NoError(t, err)
-		g.Assert(t, framePath, buf.Bytes())
-		if t.Failed() {
-			t.Logf("frame mismatch: %d, after writing: %q", frame, string(segment))
-			eRows := strings.Split(string(expected), "\n")
-			aRows := strings.Split(buf.String(), "\n")
-			for i := 0; i < len(eRows); i++ {
-				if i >= len(aRows) {
-					t.Logf("expected: %q", eRows[i])
-					t.Logf("actual: nothing")
-					break
-				}
-				if eRows[i] != aRows[i] {
-					t.Logf("expected: %q", eRows[i])
-					t.Logf("actual  : %q", aRows[i])
+		t.Run(fmt.Sprintf("frame %d", frame), func(t *testing.T) {
+			t.Log(frameLogs.String())
+
+			framePath := filepath.Join("frames", name, fmt.Sprintf("%05d", frame))
+			expected, err := os.ReadFile(filepath.Join("testdata", framePath) + ".golden")
+			require.NoError(t, err)
+			g.Assert(t, framePath, buf.Bytes())
+			if t.Failed() {
+				t.Log("expected:")
+				t.Log("\n" + string(expected))
+				t.Log("actual:")
+				t.Log("\n" + buf.String())
+
+				t.Logf("frame mismatch: %d, after writing: %q", frame, string(segment))
+				eRows := strings.Split(string(expected), "\n")
+				aRows := strings.Split(buf.String(), "\n")
+				for i := 0; i < len(eRows); i++ {
+					if i >= len(aRows) {
+						t.Logf("expected: %q", eRows[i])
+						t.Logf("actual: nothing")
+						break
+					}
+					if eRows[i] != aRows[i] {
+						t.Logf("expected: %q", eRows[i])
+						t.Logf("actual  : %q", aRows[i])
+					}
 				}
 			}
-			// t.FailNow()
-		}
-
-		return nil
+		})
 	})
 	require.NoError(t, err)
 }
 
-func eachFrame(r io.Reader, callback func(frame int, segment []byte) error) error {
-	return eachNthFrame(r, 1, callback)
+func eachFrame(r io.Reader, callback func(frame int, segment []byte)) {
+	eachNthFrame(r, 1, callback)
 }
 
-func eachNthFrame(r io.Reader, n int, callback func(frame int, segment []byte) error) error {
+func eachNthFrame(r io.Reader, n int, callback func(frame int, segment []byte)) {
 	const esc = 0x1b
 
 	var frame int
 	var segment []byte
 
-	maybeCall := func() error {
+	maybeCall := func() {
 		frame++
 		if frame%n == 0 {
-			if err := callback(frame, segment); err != nil {
-				return err
-			}
-
+			callback(frame, segment)
 			segment = segment[:0]
 		}
-		return nil
 	}
 
 	buf := make([]byte, 4096)
 	for {
 		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
-			return err
+			return
 		}
 
 		for i := 0; i < n; i++ {
 			if buf[i] == esc {
-				if err := maybeCall(); err != nil {
-					return err
-				}
+				maybeCall()
 			}
 
 			segment = append(segment, buf[i])
@@ -124,10 +127,6 @@ func eachNthFrame(r io.Reader, n int, callback func(frame int, segment []byte) e
 	}
 
 	if len(segment) > 0 {
-		if err := maybeCall(); err != nil {
-			return err
-		}
+		maybeCall()
 	}
-
-	return nil
 }

@@ -58,24 +58,54 @@ func (vt *Terminal) renderLine(w io.Writer, row int) error {
 
 	var pos int
 	lastFormat := EmptyFormat
-	for region := range vt.Format.Regions(row) {
-		if region.F != lastFormat {
-			lastFormat = region.F
-			fmt.Fprint(w, region.F.Render())
+	format := func(f Format) {
+		if lastFormat != f {
+			// TODO: this is probably a sane thing to do, but it makes picky tests
+			// fail; what if the last format set Italic? we need to reset it if the
+			// new format doesn't also set it.
+			// if lastFormat != EmptyFormat {
+			// 	fmt.Fprint(w, resetSeq)
+			// }
+			fmt.Fprint(w, f.Render())
+			lastFormat = f
 		}
+	}
+
+	for region := range vt.Format.Regions(row) {
 		line := vt.Content[row]
-		if vt.CursorVisible && row == vt.Cursor.Y && vt.Cursor.X >= pos && vt.Cursor.X < pos+region.Size &&
-			(vt.CursorBlinkEpoch == nil || int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0) {
-			fmt.Fprint(w, string(line[:vt.Cursor.X-pos]))
-			fmt.Fprint(w, "\x1b[7m")
-			fmt.Fprint(w, string(line[vt.Cursor.X]))
-			fmt.Fprint(w, "\x1b[27m")
-			fmt.Fprint(w, string(line[vt.Cursor.X+1:pos+region.Size]))
+
+		showCursor := vt.CursorVisible &&
+			row == vt.Cursor.Y &&
+			vt.Cursor.X >= pos &&
+			vt.Cursor.X < pos+region.Size &&
+			(vt.CursorBlinkEpoch == nil ||
+				int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0)
+
+		if showCursor {
+			before := string(line[pos:vt.Cursor.X])
+			cursor := string(line[vt.Cursor.X])
+			after := string(line[vt.Cursor.X+1 : pos+region.Size])
+
+			if len(before) > 0 {
+				format(region.F)
+				fmt.Fprint(w, before)
+			}
+
+			invert := region.F
+			invert.SetReverse(!region.F.IsReverse())
+			format(invert)
+			fmt.Fprint(w, cursor)
+
+			if len(after) > 0 {
+				format(region.F)
+				fmt.Fprint(w, after)
+			}
 		} else {
+			format(region.F)
 			content := string(line[pos : pos+region.Size])
 			fmt.Fprint(w, content)
 		}
-		// fmt.Fprintf(w, "region: %q", string(vt.Content[row][x:x+region.Size]))
+
 		pos += region.Size
 	}
 

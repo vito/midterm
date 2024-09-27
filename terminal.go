@@ -351,7 +351,7 @@ func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
 	}
 }
 
-func scrollUpShallow[T any](arr []T, positions, start, end int, empty T) {
+func scrollUpShallow[T any](arr []T, positions, start, end int, init func() T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
 		return // handle invalid inputs
 	}
@@ -363,7 +363,7 @@ func scrollUpShallow[T any](arr []T, positions, start, end int, empty T) {
 
 	// Fill the newly scrolled lines with blank runes
 	for i := end - positions + 1; i <= end; i++ { // +1 and <= fixes last line not being cleared
-		arr[i] = empty
+		arr[i] = init()
 	}
 }
 
@@ -387,7 +387,7 @@ func scrollDown[T any](arr [][]T, positions, start, end int, empty T) {
 	}
 }
 
-func scrollDownShallow[T any](arr []T, positions, start, end int, empty T) {
+func scrollDownShallow[T any](arr []T, positions, start, end int, init func() T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
 		return // handle invalid inputs
 	}
@@ -399,7 +399,7 @@ func scrollDownShallow[T any](arr []T, positions, start, end int, empty T) {
 
 	// Fill the newly scrolled lines with blank runes
 	for i := start; i < start+positions; i++ {
-		arr[i] = empty
+		arr[i] = init()
 	}
 }
 
@@ -422,7 +422,7 @@ func insertLines[T any](arr [][]T, start, ps, scrollStart, scrollEnd int, empty 
 	}
 }
 
-func insertLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, empty T) {
+func insertLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, init func() T) {
 	if start < 0 || start+ps > len(arr) || ps <= 0 {
 		return // handle invalid inputs
 	}
@@ -434,7 +434,7 @@ func insertLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, e
 
 	// Fill the newly inserted lines with the empty value
 	for i := start; i < start+ps; i++ {
-		arr[i] = empty
+		arr[i] = init()
 	}
 }
 
@@ -459,7 +459,7 @@ func deleteLines[T any](arr [][]T, start, ps, scrollStart, scrollEnd int, empty 
 	}
 }
 
-func deleteLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, empty T) {
+func deleteLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, init func() T) {
 	if start < 0 || start+ps > len(arr) || ps <= 0 {
 		return // handle invalid inputs
 	}
@@ -473,7 +473,7 @@ func deleteLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, e
 	// Fill the end lines with the empty value
 	fillStart := scrollEnd - ps
 	for i := fillStart + 1; i < scrollEnd+1; i++ {
-		arr[i] = empty
+		arr[i] = init()
 	}
 }
 
@@ -602,8 +602,12 @@ func (v *Terminal) insertLines(n int) {
 	}
 	v.wrap = false
 	insertLines(v.Content, v.Cursor.Y, n, start, end, ' ')
-	insertLinesShallow(v.Format.rows, v.Cursor.Y, n, start, end, &Row{})
-	insertLinesShallow(v.Changes, v.Cursor.Y, n, start, end, 0)
+	insertLinesShallow(v.Format.Rows, v.Cursor.Y, n, start, end, func() *Region {
+		return &Region{Size: v.Width, F: v.Cursor.F}
+	})
+	insertLinesShallow(v.Changes, v.Cursor.Y, n, start, end, func() uint64 {
+		return 0
+	})
 }
 
 func (v *Terminal) deleteLines(n int) {
@@ -613,16 +617,24 @@ func (v *Terminal) deleteLines(n int) {
 	}
 	v.wrap = false // delete lines resets the wrap state.
 	deleteLines(v.Content, v.Cursor.Y, n, start, end, ' ')
-	deleteLinesShallow(v.Format.rows, v.Cursor.Y, n, start, end, &Row{})
-	deleteLinesShallow(v.Changes, v.Cursor.Y, n, start, end, 0)
+	deleteLinesShallow(v.Format.Rows, v.Cursor.Y, n, start, end, func() *Region {
+		return &Region{Size: v.Width, F: v.Cursor.F}
+	})
+	deleteLinesShallow(v.Changes, v.Cursor.Y, n, start, end, func() uint64 {
+		return 0
+	})
 }
 
 func (v *Terminal) scrollDownN(n int) {
 	v.wrap = false // scroll down resets the wrap state.
 	start, end := v.scrollRegion()
 	scrollDown(v.Content, n, start, end, ' ')
-	scrollDownShallow(v.Format.rows, n, start, end, &Row{})
-	scrollDownShallow(v.Changes, n, start, end, 0)
+	scrollDownShallow(v.Format.Rows, n, start, end, func() *Region {
+		return &Region{Size: v.Width, F: v.Cursor.F}
+	})
+	scrollDownShallow(v.Changes, n, start, end, func() uint64 {
+		return 0
+	})
 }
 
 func (v *Terminal) scrollUpN(n int) {
@@ -634,8 +646,12 @@ func (v *Terminal) scrollUpN(n int) {
 	// v.wrap = false // scroll up does NOT reset the wrap state.
 	start, end := v.scrollRegion()
 	scrollUp(v.Content, n, start, end, ' ')
-	scrollUpShallow(v.Format.rows, n, start, end, &Row{})
-	scrollUpShallow(v.Changes, n, start, end, 0)
+	scrollUpShallow(v.Format.Rows, n, start, end, func() *Region {
+		return &Region{Size: v.Width, F: v.Cursor.F}
+	})
+	scrollUpShallow(v.Changes, n, start, end, func() uint64 {
+		return 0
+	})
 }
 
 func (v *Terminal) scrollRegion() (int, int) {
