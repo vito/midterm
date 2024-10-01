@@ -47,6 +47,10 @@ func goldenTest(t *testing.T, name string) {
 		frameLogs := new(bytes.Buffer)
 		midterm.DebugLogsTo(frameLogs)
 
+		if testing.Verbose() {
+			t.Logf("frame: %d, writing: %q", frame, string(segment))
+		}
+
 		n, err := vt.Write(segment)
 		require.NoError(t, err)
 		require.Equal(t, len(segment), n)
@@ -54,6 +58,14 @@ func goldenTest(t *testing.T, name string) {
 		buf := new(bytes.Buffer)
 		err = vt.Render(buf)
 		require.NoError(t, err)
+
+		for _, l := range strings.Split(frameLogs.String(), "\n") {
+			if strings.Contains(l, "TODO") {
+				t.Error(l)
+			} else if testing.Verbose() {
+				t.Log(l)
+			}
+		}
 
 		t.Run(fmt.Sprintf("frame %d", frame), func(t *testing.T) {
 			t.Log(frameLogs.String())
@@ -68,7 +80,9 @@ func goldenTest(t *testing.T, name string) {
 				t.Log("actual:")
 				t.Log("\n" + buf.String())
 
-				t.Logf("frame mismatch: %d, after writing: %q", frame, string(segment))
+				t.Logf("frame mismatch: %d", frame)
+				t.Logf("after writing: %q", string(segment))
+
 				eRows := strings.Split(string(expected), "\n")
 				aRows := strings.Split(buf.String(), "\n")
 				for i := 0; i < len(eRows); i++ {

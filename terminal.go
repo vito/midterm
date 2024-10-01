@@ -1,11 +1,10 @@
 package midterm
 
 import (
-	"bytes"
 	"io"
-	"log"
-	"runtime/debug"
 	"sync"
+
+	"github.com/danielgatis/go-ansicode"
 )
 
 // Terminal represents a raw terminal capable of handling VT100 and VT102 ANSI
@@ -14,6 +13,9 @@ import (
 type Terminal struct {
 	// Screen is the current screen, embedded so that Terminal is a pass-through.
 	*Screen
+
+	// The title of the terminal
+	Title string
 
 	// Alt is either the alternate screen (if !IsAlt) or the main screen (if
 	// IsAlt).
@@ -45,9 +47,7 @@ type Terminal struct {
 	// to the next line if another character is printed.
 	wrap bool
 
-	// unparsed is the bytes that we have not yet parsed. It typically contains a
-	// partial escape sequence.
-	unparsed []byte
+	*ansicode.Decoder
 
 	// onResize is a hook called every time the terminal resizes.
 	onResize OnResizeFunc
@@ -67,6 +67,9 @@ type Cursor struct {
 
 	// F is the format that will be displayed.
 	F Format
+
+	// S is the cursor style.
+	S ansicode.CursorStyle
 }
 
 // ScrollRegion represents a region of the terminal that is
@@ -96,10 +99,17 @@ func NewTerminal(rows, cols int) *Terminal {
 	v := &Terminal{
 		Screen: newScreen(rows, cols),
 	}
-
+	v.Decoder = ansicode.NewDecoder(v)
 	v.reset()
-
 	return v
+}
+
+// Write writes the input sequence to the terminal.
+func (v *Terminal) Write(p []byte) (int, error) {
+	if trace != nil {
+		trace.Write(p)
+	}
+	return v.Decoder.Write(p)
 }
 
 func (v *Terminal) Reset() {
@@ -196,74 +206,6 @@ func (v *Terminal) resize(h, w int) {
 	if v.Alt != nil {
 		v.Alt.resize(h, w)
 	}
-}
-
-func (v *Terminal) Write(dt []byte) (n int, rerr error) {
-	n = len(dt)
-
-	if trace != nil {
-		trace.Write(dt)
-	}
-
-	defer func() {
-		if err := recover(); err != nil {
-			log.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
-			log.Writer().Write(debug.Stack())
-			dbg.Printf("RECOVERED WRITE PANIC FOR %q: %v", string(dt), err)
-			dbg.Writer().Write(debug.Stack())
-		}
-	}()
-
-	v.mut.Lock()
-	defer v.mut.Unlock()
-
-	if len(v.unparsed) > 0 {
-		dt = append(v.unparsed, dt...)
-		v.unparsed = nil
-	}
-
-	buf := bytes.NewBuffer(dt)
-	for buf.Len() > 0 {
-		// nextLine := bytes.IndexByte(buf.Bytes(), '\n')
-		// if nextLine == -1 {
-		// 	nextLine = buf.Len()
-		// }
-		//
-		cmd, unparsed, err := Decode(buf)
-		if err != nil {
-			dbg.Printf("LEAVING UNPARSED: %q FOR ERR: %s", string(unparsed), err)
-			v.unparsed = unparsed
-			break
-		}
-
-		dbg.Printf("PARSED: %+v", cmd)
-
-		// grow before handling every command. this is a little unintuitive, but
-		// the root desire is to avoid leaving a trailing blank line when ending
-		// with "\n" since it wastes a row of output, but we also need to make
-		// sure we actually advance before we perform any other update to avoid
-		// bounds related panics.
-		v.scrollOrResizeYIfNeeded()
-		v.resizeXIfNeeded()
-
-		if err := cmd.display(v); err != nil {
-			dbg.Printf("DISPLAY ERR FOR %s: %v", cmd, err)
-		}
-	}
-
-	return n, nil
-}
-
-// Process handles a single ANSI terminal command, updating the terminal
-// appropriately.
-//
-// One special kind of error that this can return is an UnsupportedError. It's
-// probably best to check for these and skip, because they are likely recoverable.
-func (v *Terminal) Process(c Command) error {
-	v.mut.Lock()
-	defer v.mut.Unlock()
-
-	return c.display(v)
 }
 
 // put puts r onto the current cursor's position, then advances the cursor.
@@ -680,38 +622,6 @@ const (
 	eraseAll
 )
 
-// eraseColumns erases columns from the current line.
-func (v *Terminal) eraseColumns(d eraseDirection) {
-	y, x := v.Cursor.Y, v.Cursor.X // Aliases for simplicity.
-	switch d {
-	case eraseBack:
-		v.eraseRegion(y, 0, y, x)
-	case eraseForward:
-		v.eraseRegion(y, x, y, v.Width-1)
-	case eraseAll:
-		v.eraseRegion(y, 0, y, v.Width-1)
-	}
-}
-
-// eraseLines erases lines from the current terminal.
-func (v *Terminal) eraseLines(d eraseDirection) {
-	x, y := v.Cursor.X, v.Cursor.Y // Alias for simplicity.
-	switch d {
-	case eraseBack:
-		v.eraseRegion(0, 0, y, x)
-		if y > 0 {
-			v.eraseRegion(0, 0, y-1, v.Width-1)
-		}
-	case eraseForward:
-		v.eraseRegion(y, x, v.Height-1, v.Width-1)
-		if y < v.Height-1 {
-			v.eraseRegion(y+1, 0, v.Height-1, v.Width-1)
-		}
-	case eraseAll:
-		v.eraseRegion(0, 0, v.Height-1, v.Width-1)
-	}
-}
-
 func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	// Erasing lines and columns clears the wrap state.
 	v.wrap = false
@@ -730,24 +640,6 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 		}
 		for x := x1; x <= rowX2; x++ {
 			v.clear(y, x, f)
-		}
-	}
-}
-
-func (v *Terminal) backspace() {
-	v.Changes[v.Cursor.Y]++
-	v.Cursor.X--
-	if v.Cursor.X < 0 {
-		if v.Cursor.Y == 0 {
-			v.Cursor.X = 0
-		} else {
-			v.Cursor.Y--
-			if v.AutoResizeX {
-				v.Cursor.X = len(v.Content[v.Cursor.Y]) - 1
-			} else {
-				v.Cursor.X = v.Width - 1
-			}
-			v.Changes[v.Cursor.Y]++
 		}
 	}
 }
