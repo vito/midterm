@@ -14,16 +14,21 @@ var blue = midterm.Format{Fg: termenv.ANSIBlue}
 var brightGreen = midterm.Format{Fg: termenv.ANSIBrightGreen}
 
 func TestCanvasPaint(t *testing.T) {
+	type paint struct {
+		x, y int
+		f    midterm.Format
+	}
+
 	type PaintExample struct {
 		Name   string
-		Paints []midterm.Cursor
+		Paints []paint
 		Result *midterm.Canvas
 	}
 
 	for _, ex := range []PaintExample{
 		{
 			Name: "initial paint",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, midterm.EmptyFormat},
 			},
 			Result: &midterm.Canvas{
@@ -38,7 +43,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "repeated paints does not grow",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, midterm.EmptyFormat},
 				{0, 0, midterm.EmptyFormat},
 				{0, 0, midterm.EmptyFormat},
@@ -55,7 +60,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "painting on boundary grows",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, midterm.EmptyFormat},
 				{0, 1, midterm.EmptyFormat},
 				{0, 2, midterm.EmptyFormat},
@@ -72,7 +77,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "within region with same format does nothing",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, red},
@@ -90,7 +95,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "within region with different format splits the region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, red},
@@ -116,7 +121,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "different format between regions at start of next region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, red},
@@ -144,7 +149,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "same format between regions at start of next region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, red},
@@ -168,7 +173,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "painting beyond the end of the region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, red},
@@ -194,7 +199,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "overwriting a single width region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, green},
@@ -220,7 +225,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "overwriting the start of a wider region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, green},
@@ -246,7 +251,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "overwriting the end of a wider region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, green},
@@ -273,7 +278,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "overwriting the end of a wider region with another region after it",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, green},
@@ -306,7 +311,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "clobbering a region at the start",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, green},
 				{0, 0, blue},
@@ -326,7 +331,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "clobbering a region at the end",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, green},
 				{0, 1, blue},
@@ -346,7 +351,7 @@ func TestCanvasPaint(t *testing.T) {
 		},
 		{
 			Name: "overwriting the middle of a wider region",
-			Paints: []midterm.Cursor{
+			Paints: []paint{
 				{0, 0, red},
 				{0, 1, red},
 				{0, 2, green},
@@ -380,7 +385,7 @@ func TestCanvasPaint(t *testing.T) {
 			canvas := &midterm.Canvas{}
 			for _, p := range ex.Paints {
 				t.Logf("painting %+v", p)
-				canvas.Paint(p)
+				canvas.Paint(p.x, p.y, p.f)
 			}
 			require.Equal(t, ex.Result, canvas)
 		})
@@ -395,8 +400,8 @@ func TestCanvasPaint(t *testing.T) {
 //
 // 	type PaintExample struct {
 // 		Name   string
-// 		Paints []midterm.Cursor
-// 		Insert midterm.Cursor
+// 		Paints []paint
+// 		Insert paint
 // 		Size   int
 // 		Result *midterm.Canvas
 // 	}
@@ -404,7 +409,7 @@ func TestCanvasPaint(t *testing.T) {
 // 	for _, ex := range []PaintExample{
 // 		{
 // 			Name: "initial paint",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, midterm.EmptyFormat},
 // 			},
 // 			Result: &midterm.Canvas{
@@ -419,7 +424,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "repeated paints does not grow",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, midterm.EmptyFormat},
 // 				{0, 0, midterm.EmptyFormat},
 // 				{0, 0, midterm.EmptyFormat},
@@ -436,7 +441,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "painting on boundary grows",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, midterm.EmptyFormat},
 // 				{0, 1, midterm.EmptyFormat},
 // 				{0, 2, midterm.EmptyFormat},
@@ -453,7 +458,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "within region with same format does nothing",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, red},
@@ -471,7 +476,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "within region with different format splits the region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, red},
@@ -497,7 +502,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "different format between regions at start of next region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, red},
@@ -525,7 +530,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "same format between regions at start of next region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, red},
@@ -549,7 +554,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "painting beyond the end of the region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, red},
@@ -575,7 +580,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "overwriting a single width region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, green},
@@ -601,7 +606,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "overwriting the start of a wider region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, green},
@@ -627,7 +632,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "overwriting the end of a wider region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, green},
@@ -654,7 +659,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "overwriting the end of a wider region with another region after it",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, green},
@@ -687,7 +692,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "clobbering a region at the start",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, green},
 // 				{0, 0, blue},
@@ -707,7 +712,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "clobbering a region at the end",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, green},
 // 				{0, 1, blue},
@@ -727,7 +732,7 @@ func TestCanvasPaint(t *testing.T) {
 // 		},
 // 		{
 // 			Name: "overwriting the middle of a wider region",
-// 			Paints: []midterm.Cursor{
+// 			Paints: []paint{
 // 				{0, 0, red},
 // 				{0, 1, red},
 // 				{0, 2, green},

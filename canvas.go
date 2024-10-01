@@ -66,76 +66,76 @@ func (canvas *Canvas) Region(row, col int) *Region {
 	return nil
 }
 
-func (canvas *Canvas) Paint(cursor Cursor) {
-	dbg.Printf("PAINTING %d:%d: %q", cursor.Y, cursor.X, cursor.F.Render())
-	for len(canvas.Rows) <= cursor.Y {
+func (canvas *Canvas) Paint(row, col int, format Format) {
+	// dbg.Printf("PAINTING %d:%d: %q", row, col, format.Render())
+	for len(canvas.Rows) <= row {
 		// initialize empty regions up to the cursor row
 		canvas.Rows = append(canvas.Rows, &Region{Size: canvas.Width})
 	}
 
 	var pos int
 	var prev *Region
-	for region := range canvas.Regions(cursor.Y) {
+	for region := range canvas.Regions(row) {
 		next := region.Next
 		end := pos + region.Size
-		if end == cursor.X {
+		if end == col {
 			if region.Size == 0 {
 				// empty row; bootstrap it
 				region.Size++
-				region.F = cursor.F
+				region.F = format
 				region.consumeNext()
 				return
 			}
-			if cursor.F == region.F {
+			if format == region.F {
 				// same format; grow existing region
 				region.Size++
 				region.consumeNext()
 				return
-			} else if next != nil && cursor.F == next.F {
+			} else if next != nil && format == next.F {
 				// next region already has same format; nothing to do
 				return
 			} else {
 				// eat into the next region
 				region.Next = &Region{
-					F:    cursor.F,
+					F:    format,
 					Size: 1,
 					Next: region.Next,
 				}
 				region.Next.consumeNext()
 				return
 			}
-		} else if cursor.X == pos {
+		} else if col == pos {
 			if region.Size == 0 {
 				// empty row; bootstrap it
 				region.Size++
-				region.F = cursor.F
+				region.F = format
 				region.consumeNext()
 				return
 			}
 			cp := *region
 			*region = Region{
-				F:    cursor.F,
+				F:    format,
 				Size: 1,
 				Next: &cp,
 			}
 			region.consumeNext()
 			return
-		} else if end > cursor.X {
-			if cursor.F == region.F {
+		} else if end > col {
+			if format == region.F {
 				// nothing to do
 				return
 			} else {
 				// split the region
-				region.Size = cursor.X - pos
+				region.Size = col - pos
 				if region.Size <= 0 {
 					panic(region.Size)
 				}
 				origNext := region.Next
 				region.Next = &Region{
-					F:    cursor.F,
+					F:    format,
 					Size: 1,
 				}
-				remainder := end - cursor.X - 1
+				remainder := end - col - 1
 				if remainder > 0 {
 					// add remainder, followed by original next
 					region.Next.Next = &Region{
@@ -158,9 +158,9 @@ func (canvas *Canvas) Paint(cursor Cursor) {
 	// cursor.
 	prev.Next = &Region{
 		F:    EmptyFormat,
-		Size: cursor.X - pos,
+		Size: col - pos,
 		Next: &Region{
-			F:    cursor.F,
+			F:    format,
 			Size: 1,
 		},
 	}

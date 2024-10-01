@@ -69,11 +69,7 @@ func (s *Screen) reset() {
 		s.Content[row] = make([]rune, s.Width)
 		for col := 0; col < s.Width; col++ {
 			s.Content[row][col] = ' '
-			s.Format.Paint(Cursor{
-				X: col,
-				Y: row,
-				F: EmptyFormat,
-			})
+			s.Format.Paint(row, col, EmptyFormat)
 		}
 	}
 	s.Cursor.X = 0
@@ -127,10 +123,6 @@ func (v *Screen) resize(h, w int) {
 
 func (v *Screen) clear(y, x int, format Format) {
 	v.Content[y][x] = ' '
-	v.Format.Paint(Cursor{
-		X: x,
-		Y: y,
-		F: format,
-	})
+	v.Format.Paint(y, x, format)
 	v.Changes[y]++
 }

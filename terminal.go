@@ -275,9 +275,9 @@ func (v *Terminal) put(r rune) {
 		v.scrollOrResizeYIfNeeded()
 		v.wrap = false
 	}
-	x, y := v.Cursor.X, v.Cursor.Y
+	x, y, f := v.Cursor.X, v.Cursor.Y, v.Cursor.F
 	v.Content[y][x] = r
-	v.Format.Paint(v.Cursor)
+	v.Format.Paint(y, x, f)
 	if y > v.MaxY {
 		// track max character offset for UsedHeight()
 		v.MaxY = y
@@ -308,11 +308,7 @@ func (v *Terminal) resizeXIfNeeded() {
 		spaces := make([]rune, target-len(content))
 		for i := range spaces {
 			spaces[i] = ' '
-			v.Format.Paint(Cursor{
-				X: v.Cursor.X + (i + 1),
-				Y: row,
-				F: v.Cursor.F,
-			})
+			v.Format.Paint(row, v.Cursor.X+(i+1), v.Cursor.F)
 		}
 		v.Screen.Content[row] = append(content, spaces...)
 		v.Changes[row]++
@@ -572,11 +568,7 @@ func (v *Terminal) repeatPrecedingCharacter(n int) {
 	region := v.Format.Region(v.Cursor.Y, v.Cursor.X-1)
 	if region != nil {
 		for i := 0; i < n; i++ {
-			v.Format.Paint(Cursor{
-				Y: v.Cursor.Y,
-				X: v.Cursor.X + i,
-				F: region.F,
-			})
+			v.Format.Paint(v.Cursor.Y, v.Cursor.X+i, region.F)
 		}
 	}
 	v.Changes[v.Cursor.Y]++
@@ -586,11 +578,7 @@ func (v *Terminal) eraseCharacters(n int) {
 	v.wrap = false // erase characters resets the wrap state.
 	eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	for i := 0; i < n; i++ {
-		v.Format.Paint(Cursor{
-			Y: v.Cursor.Y,
-			X: v.Cursor.X + i,
-			F: v.Cursor.F,
-		})
+		v.Format.Paint(v.Cursor.Y, v.Cursor.X+i, v.Cursor.F)
 	}
 	v.Changes[v.Cursor.Y]++
 }
