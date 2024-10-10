@@ -40,32 +40,6 @@ func (canvas *Canvas) Regions(row int) iter.Seq[*Region] {
 	}
 }
 
-func (canvas *Canvas) Region(row, col int) *Region {
-	// Check if the row is out of bounds
-	if row >= len(canvas.Rows) || row < 0 {
-		return nil
-	}
-
-	current := canvas.Rows[row]
-	pos := 0
-
-	// Traverse the regions in the row to find the region containing 'col'
-	for current != nil {
-		end := pos + current.Size
-		if pos <= col && col < end {
-			// The column is within the current region
-			return current
-		}
-
-		// Move to the next region
-		pos = end
-		current = current.Next
-	}
-
-	// If no region is found, return nil
-	return nil
-}
-
 func (canvas *Canvas) Paint(row, col int, format Format) {
 	// dbg.Printf("PAINTING %d:%d: %q", row, col, format.Render())
 	for len(canvas.Rows) <= row {

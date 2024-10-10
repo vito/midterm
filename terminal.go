@@ -430,23 +430,6 @@ func eraseCharacters[T any](arr [][]T, row, col, ps int, empty T) {
 	}
 }
 
-func repeatPrecedingCharacter[T any](arr [][]T, row, col, ps int) {
-	if row < 0 || row >= len(arr) || col <= 0 || col-1 >= len(arr[row]) || ps < 0 {
-		return // handle invalid inputs
-	}
-
-	charToRepeat := arr[row][col-1]
-
-	if ps == 0 {
-		ps = 1 // if Ps is 0, repeat the character once
-	}
-
-	// Repeat the preceding character Ps times starting from the current column
-	for i := 0; i < ps && col+i < len(arr[row]); i++ {
-		arr[row][col+i] = charToRepeat
-	}
-}
-
 func deleteCharacters[T any](arr [][]T, row, col, ps int, empty T) {
 	if row < 0 || row >= len(arr) || col < 0 || col >= len(arr[row]) || ps < 0 {
 		return // handle invalid inputs
@@ -502,17 +485,6 @@ func (v *Terminal) deleteCharacters(n int) {
 	v.wrap = false // delete characters resets the wrap state.
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	v.Format.Delete(v.Cursor.Y, v.Cursor.X, n)
-	v.Changes[v.Cursor.Y]++
-}
-
-func (v *Terminal) repeatPrecedingCharacter(n int) {
-	repeatPrecedingCharacter(v.Content, v.Cursor.Y, v.Cursor.X, n)
-	region := v.Format.Region(v.Cursor.Y, v.Cursor.X-1)
-	if region != nil {
-		for i := 0; i < n; i++ {
-			v.Format.Paint(v.Cursor.Y, v.Cursor.X+i, region.F)
-		}
-	}
 	v.Changes[v.Cursor.Y]++
 }
 
