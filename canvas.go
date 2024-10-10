@@ -288,6 +288,11 @@ func (canvas *Canvas) Delete(row, col, n int) {
 }
 
 func (canvas *Canvas) Resize(h, w int) {
+	canvas.ResizeY(h)
+	canvas.ResizeX(w)
+}
+
+func (canvas *Canvas) ResizeY(h int) {
 	// Handle height adjustment
 	if h < len(canvas.Rows) {
 		// Truncate rows if the new height is less than the current height
@@ -295,10 +300,12 @@ func (canvas *Canvas) Resize(h, w int) {
 	} else if h > len(canvas.Rows) {
 		// Add new empty rows if the new height is greater than the current height
 		for i := len(canvas.Rows); i < h; i++ {
-			canvas.Rows = append(canvas.Rows, nil)
+			canvas.Rows = append(canvas.Rows, &Region{Size: canvas.Width})
 		}
 	}
+}
 
+func (canvas *Canvas) ResizeX(w int) {
 	// Handle width adjustment
 	for y := 0; y < len(canvas.Rows); y++ {
 		row := canvas.Rows[y]

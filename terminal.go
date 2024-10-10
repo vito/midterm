@@ -241,6 +241,13 @@ func (v *Terminal) advance() {
 	}
 }
 
+func (v *Terminal) resizeY(h int) {
+	v.Screen.resizeY(h)
+	if v.Alt != nil {
+		v.Alt.resizeY(h)
+	}
+}
+
 func (v *Terminal) resizeXIfNeeded() {
 	// +1 because printing advances the cursor, and this is called before the print
 	target := v.Cursor.X + 1
@@ -248,9 +255,10 @@ func (v *Terminal) resizeXIfNeeded() {
 	content := v.Screen.Content[row]
 	if v.AutoResizeX && target > len(content) {
 		spaces := make([]rune, target-len(content))
+		dbg.Println("RESIZING X NEEDED", v.Cursor.X, "spaces", len(spaces))
 		for i := range spaces {
 			spaces[i] = ' '
-			v.Format.Paint(row, v.Cursor.X+(i+1), v.Cursor.F)
+			v.Format.Paint(row, v.Cursor.X+i, v.Cursor.F)
 		}
 		v.Screen.Content[row] = append(content, spaces...)
 		v.Changes[row]++
@@ -261,7 +269,7 @@ func (v *Terminal) scrollOrResizeYIfNeeded() {
 	if v.Cursor.Y >= v.Height {
 		if v.AutoResizeY {
 			dbg.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
-			v.resize(v.Cursor.Y+1, v.Width)
+			v.resizeY(v.Cursor.Y + 1)
 		} else {
 			dbg.Println("SCROLLING NEEDED", v.Cursor.Y, v.Height)
 			v.scrollOne()

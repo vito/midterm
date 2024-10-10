@@ -25,6 +25,35 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+func TestAutoResize(t *testing.T) {
+	t.Run("with an initial width", func(t *testing.T) {
+		vt := midterm.NewTerminal(0, 5)
+		vt.AutoResizeX = true
+		vt.AutoResizeY = true
+		fmt.Fprintln(vt, "hey")
+		fmt.Fprintln(vt, "yo")
+		fmt.Fprintln(vt, "im a grower")
+
+		buf := new(bytes.Buffer)
+		err := vt.Render(buf)
+		require.NoError(t, err)
+		require.Equal(t, "hey  \x1b[0m\nyo   \x1b[0m\nim a grower\x1b[0m\n     \x1b[0m", buf.String())
+	})
+	t.Run("without an initial width", func(t *testing.T) {
+		vt := midterm.NewTerminal(0, 0)
+		vt.AutoResizeX = true
+		vt.AutoResizeY = true
+		fmt.Fprintln(vt, "hey")
+		fmt.Fprintln(vt, "yo")
+		fmt.Fprintln(vt, "im a grower")
+
+		buf := new(bytes.Buffer)
+		err := vt.Render(buf)
+		require.NoError(t, err)
+		require.Equal(t, "hey\x1b[0m\nyo\x1b[0m\nim a grower\x1b[0m\n\x1b[0m", buf.String())
+	})
+}
+
 func goldenTest(t *testing.T, name string) {
 	t.Helper()
 

@@ -77,11 +77,16 @@ func (s *Screen) reset() {
 }
 
 func (v *Screen) resize(h, w int) {
+	v.resizeY(h)
+	v.resizeX(w)
+}
+
+func (v *Screen) resizeY(h int) {
+	v.Format.ResizeY(h)
+
 	if h < v.MaxY {
 		v.MaxY = h - 1
 	}
-
-	v.Format.Resize(h, w)
 
 	if h > v.Height {
 		n := h - v.Height
@@ -96,6 +101,12 @@ func (v *Screen) resize(h, w int) {
 		v.Content = v.Content[:h]
 		v.Changes = v.Changes[:h]
 	}
+
+	v.Height = h
+}
+
+func (v *Screen) resizeX(w int) {
+	v.Format.ResizeX(w)
 
 	if w > v.Width {
 		for i := range v.Content {
@@ -113,7 +124,6 @@ func (v *Screen) resize(h, w int) {
 		}
 	}
 
-	v.Height = h
 	v.Width = w
 
 	if v.Width != 0 && v.Cursor.X >= v.Width {
