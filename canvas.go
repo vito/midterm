@@ -127,9 +127,6 @@ func (canvas *Canvas) Paint(row, col int, format Format) {
 			} else {
 				// split the region
 				region.Size = col - pos
-				if region.Size <= 0 {
-					panic(region.Size)
-				}
 				origNext := region.Next
 				region.Next = &Region{
 					F:    format,
@@ -164,9 +161,6 @@ func (canvas *Canvas) Paint(row, col int, format Format) {
 			Size: 1,
 		},
 	}
-	if prev.Next.Size <= 0 {
-		panic("wha? 4")
-	}
 
 	// handle empty initial region
 	if prev.Size == 0 {
@@ -174,74 +168,75 @@ func (canvas *Canvas) Paint(row, col int, format Format) {
 	}
 }
 
-// TODO: untested
-func (canvas *Canvas) Insert(cursor Cursor, n int) {
-	for len(canvas.Rows) <= cursor.Y {
+func (canvas *Canvas) Insert(row, col int, f Format, n int) {
+	for len(canvas.Rows) <= row {
 		// initialize empty regions up to the cursor row
 		canvas.Rows = append(canvas.Rows, &Region{Size: canvas.Width})
 	}
 
 	var pos int
 	var prev *Region
-	for region := range canvas.Regions(cursor.Y) {
+	for region := range canvas.Regions(row) {
 		next := region.Next
 		end := pos + region.Size
-		if end == cursor.X {
+		if end == col {
 			if region.Size == 0 {
 				// empty row; bootstrap it
 				region.Size += n
-				region.F = cursor.F
+				region.F = f
 				return
 			}
-			if cursor.F == region.F {
+			if f == region.F {
 				// same format; grow existing region
 				region.Size += n
 				return
-			} else if next != nil && cursor.F == next.F {
+			} else if next != nil && f == next.F {
 				// next region already has same format; grow it
 				next.Size += n
 				return
 			} else {
 				// insert before the next region
 				region.Next = &Region{
-					F:    cursor.F,
+					F:    f,
 					Size: n,
 					Next: region.Next,
 				}
 				return
 			}
-		} else if cursor.X == pos {
+		} else if col == pos {
 			if region.Size == 0 {
 				// empty row; bootstrap it
 				region.Size++
-				region.F = cursor.F
+				region.F = f
+				return
+			}
+			if f == region.F {
+				// same format; grow existing region
+				region.Size += n
 				return
 			}
 			cp := *region
 			*region = Region{
-				F:    cursor.F,
+				F:    f,
 				Size: n,
 				Next: &cp,
 			}
 			return
-		} else if end > cursor.X {
-			if cursor.F == region.F {
+		} else if end > col {
+			if f == region.F {
 				// grow the current region
 				region.Size += n
 				return
 			} else {
 				// split the region
-				region.Size = cursor.X - pos
-				if region.Size <= 0 {
-					panic(region.Size)
-				}
+				region.Size = col - pos
 				origNext := region.Next
 				region.Next = &Region{
-					F:    cursor.F,
+					F:    f,
 					Size: n,
 					Next: &Region{
 						F:    region.F,
-						Size: end - cursor.X,
+						Size: end - col,
 						Next: origNext,
 					},
 				}
@@ -256,43 +251,36 @@ func (canvas *Canvas) Insert(cursor Cursor, n int) {
 	// cursor.
 	prev.Next = &Region{
 		F:    EmptyFormat,
-		Size: cursor.X - pos,
+		Size: col - pos,
 		Next: &Region{
-			F:    cursor.F,
+			F:    f,
 			Size: n,
 		},
 	}
 
 	// handle empty initial region
 	if prev.Size == 0 {
-		panic("TESTME")
 		*prev = *prev.Next
 	}
 }
 
 // TODO: untested
-func (canvas *Canvas) Delete(cursor Cursor, n int) {
-	if cursor.Y >= len(canvas.Rows) {
+func (canvas *Canvas) Delete(row, col, n int) {
+	if row >= len(canvas.Rows) {
 		return // Row doesn't exist, nothing to delete
 	}
 
 	var pos int
 	var prev *Region
-	for region := range canvas.Regions(cursor.Y) {
+	for region := range canvas.Regions(row) {
 		end := pos + region.Size
 
-		if end > cursor.X {
-			// We're in the region to start deleting
-			if cursor.X > pos {
-				// Split the region if the cursor is in the middle
-				region.Size = cursor.X - pos
-				origNext := region.Next
-				remainder := end - cursor.X
-				region.Next = &Region{
-					F:    region.F,
-					Size: remainder,
-					Next: origNext,
-				}
+		if end > col {
+			rem := end - col
+
+			if rem > 0 {
+				n -= (region.Size - rem)
+				region.Size = rem
 				region = region.Next
 			}
 
@@ -303,9 +291,12 @@ func (canvas *Canvas) Delete(cursor Cursor, n int) {
 					n -= region.Size
 					if prev != nil {
 						prev.Next = region.Next
-					} else {
+					} else if region.Next != nil {
 						// Head of the row being deleted
-						canvas.Rows[cursor.Y] = region.Next
+						canvas.Rows[row] = region.Next
+					} else {
+						// Just leave an empty region behind
+						region.Size = 0
 					}
 					region = region.Next
 				} else {
@@ -379,9 +370,6 @@ func (region *Region) consumeNext() {
 	next := region.Next
 	if next != nil {
 		next.Size--
-		if next.Size < 0 {
-			panic("wha? 1")
-		}
 		if next.Size == 0 {
 			region.Next = nil
 			if next.Next != nil {

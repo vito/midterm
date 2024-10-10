@@ -494,14 +494,14 @@ func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
 
 func (v *Terminal) insertCharacters(n int) {
 	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
-	v.Format.Insert(v.Cursor, n)
+	v.Format.Insert(v.Cursor.Y, v.Cursor.X, v.Cursor.F, n)
 	v.Changes[v.Cursor.Y]++
 }
 
 func (v *Terminal) deleteCharacters(n int) {
 	v.wrap = false // delete characters resets the wrap state.
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
-	v.Format.Delete(v.Cursor, n)
+	v.Format.Delete(v.Cursor.Y, v.Cursor.X, n)
 	v.Changes[v.Cursor.Y]++
 }
 
