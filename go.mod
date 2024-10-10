@@ -5,11 +5,11 @@ go 1.23
 require (
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/creack/pty v1.1.18
-	github.com/danielgatis/go-ansicode v1.0.3
+	github.com/danielgatis/go-ansicode v1.0.6
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/muesli/termenv v0.15.1
 	github.com/sebdah/goldie/v2 v2.5.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/term v0.6.0
 )
 
@@ -18,7 +18,7 @@ require (
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/danielgatis/go-iterator v0.0.1 // indirect
 	github.com/danielgatis/go-utf8 v1.0.0 // indirect
-	github.com/danielgatis/go-vte v1.0.7 // indirect
+	github.com/danielgatis/go-vte v1.0.8 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
