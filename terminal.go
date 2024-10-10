@@ -84,7 +84,7 @@ type ScrollRegion struct {
 // This may be useful for applications that want to display dynamically sized
 // content.
 func NewAutoResizingTerminal() *Terminal {
-	term := NewTerminal(1, 80)
+	term := NewTerminal(0, 0)
 	term.AutoResizeX = true
 	term.AutoResizeY = true
 	return term
