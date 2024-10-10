@@ -202,6 +202,8 @@ func (v *Terminal) IdentifyTerminal(b byte) {
 // Input inputs a rune to be displayed.
 func (v *Terminal) Input(r rune) {
 	dbg.Printf("Input: %c\n", r)
+	v.scrollOrResizeYIfNeeded()
+	v.resizeXIfNeeded()
 	v.put(r)
 }
 
