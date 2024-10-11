@@ -144,9 +144,9 @@ func goldenTest(t *testing.T, name string) {
 			t.Log(frameLogs.String())
 
 			framePath := filepath.Join("frames", name, fmt.Sprintf("%05d", frame))
+			g.Assert(t, framePath, buf.Bytes())
 			expected, err := os.ReadFile(filepath.Join("testdata", framePath) + ".golden")
 			require.NoError(t, err)
-			g.Assert(t, framePath, buf.Bytes())
 			if t.Failed() {
 				t.Log("expected:")
 				t.Log("\n" + string(expected))

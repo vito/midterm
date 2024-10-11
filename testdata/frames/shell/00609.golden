@@ -1,0 +1,24 @@
+[0m-rw-r--r--  1 vito vito     1996 Aug 30 18:29 README.md                                                                 [0m
+[0m-rw-r--r--  1 vito vito     3556 Oct 11 16:12 render.go                                                                 [0m
+[0mdrwxr-xr-x  2 vito vito     4096 Aug 30 18:29 [0m[1;94mreplay[0m/                                                                   [0m
+[0m-rw-r--r--  1 vito vito     4010 Oct 11 17:04 screen.go                                                                 [0m
+[0m-rw-r--r--  1 vito vito     4298 Oct  2 14:34 Session.vim                                                               [0m
+[0m-rw-r--r--  1 vito vito     5395 Oct 11 17:09 shell                                                                     [0m
+[0m-rw-r--r--  1 vito vito    16865 Oct 11 17:08 terminal.go                                                               [0m
+[0m-rw-r--r--  1 vito vito     5844 Oct 11 17:07 terminal_test.go                                                          [0m
+[0mdrwxr-xr-x  4 vito vito     4096 Sep 26 16:02 [0m[1;94mtestdata[0m/                                                                 [0m
+[0m                                                                                                                        [0m
+[0m[1;96mmidterm[0m on [0m[1;95m canvas-tests[0m [0m[1;91m[$!?][0m via [0m[1;96m🐹 v1.23.2 [0m                                                                          [0m
+[0m[1;92m❯[0m [0m[38;2;195;167;231mecho[0m[38;2;224;222;243m [0m[38;2;235;188;186mok[0m[38;2;224;222;243m [0m[38;2;235;188;186mwe[0m[38;2;224;222;243m [0m[38;2;235;188;186mscrolled[0m[38;2;224;222;243m                                                                                                   [0m
+[0mok we scrolled[0m[38;2;224;222;243m                                                                                                          [0m
+[0m                                                                                                                        [0m
+[0m[1;96mmidterm[0m on [0m[1;95m canvas-tests[0m [0m[1;91m[$!?][0m via [0m[1;96m🐹 v1.23.2 [0m                                                                          [0m
+[0m[1;92m❯[0m [0m[38;2;195;167;231mbash[0m[38;2;224;222;243m                                                                                                                  [0m
+[0m[1;92mvito@F16[0m:[0m[1;94m~/src/midterm[0m$ echo $'foo\nbar\n\e[31mbaz\e[0m\b\b\b\b\b\b\b\b\b\bq'[0m[38;2;224;222;243m                                           [0m
+[0mfoo                                                                                                                     [0m
+[0mbar                                                                                                              q      [0m
+[0m[1;92mvito@F16[0m:[0m[1;94m~/src/midterm[0m$ echo $'foo\nbar\n\e[31mbaz\e[0m\bq'                                                             [0m
+[0mfoo                                                                                                                     [0m
+[0mbar                                                                                                                     [0m
+[0m[31mba[0mq                                                                                                                     [0m
+[0m[1;92mvito@F16[0m:                                                                                                               [0m
