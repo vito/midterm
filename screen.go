@@ -61,6 +61,9 @@ func newScreen(h, w int) *Screen {
 	return s
 }
 
+var Reset = Format{Properties: ResetBit}
+var EmptyFormat = Format{}
+
 func (s *Screen) reset() {
 	s.Content = make([][]rune, s.Height)
 	s.Format = &Canvas{Width: s.Width}

@@ -12,6 +12,7 @@ import (
 
 // Backspace moves the cursor one position to the left.
 func (v *Terminal) Backspace() {
+	v.scrollOrResizeYIfNeeded()
 	v.Changes[v.Cursor.Y]++
 	v.Cursor.X--
 	if v.Cursor.X < 0 {
@@ -19,6 +20,7 @@ func (v *Terminal) Backspace() {
 			v.Cursor.X = 0
 		} else {
 			v.Cursor.Y--
+			v.scrollOrResizeYIfNeeded()
 			if v.AutoResizeX {
 				v.Cursor.X = len(v.Content[v.Cursor.Y]) - 1
 			} else {
@@ -37,6 +39,7 @@ func (v *Terminal) Bell() {
 // CarriageReturn moves the cursor to the beginning of the line.
 func (v *Terminal) CarriageReturn() {
 	v.Cursor.X = 0
+	v.scrollOrResizeYIfNeeded()
 	v.Changes[v.Cursor.Y]++
 	v.wrap = false
 }
@@ -44,6 +47,7 @@ func (v *Terminal) CarriageReturn() {
 // ClearLine clears the line.
 func (v *Terminal) ClearLine(mode ansicode.LineClearMode) {
 	dbg.Println("ClearLine", mode)
+	v.scrollOrResizeYIfNeeded()
 	y, x, w := v.Cursor.Y, v.Cursor.X, v.Width
 	switch mode {
 	case ansicode.LineClearModeRight:
@@ -58,6 +62,7 @@ func (v *Terminal) ClearLine(mode ansicode.LineClearMode) {
 // ClearScreen clears the screen.
 func (v *Terminal) ClearScreen(mode ansicode.ClearMode) {
 	dbg.Println("ClearScreen", mode)
+	v.scrollOrResizeYIfNeeded()
 	y, x, w, h := v.Cursor.Y, v.Cursor.X, v.Width, v.Height
 	switch mode {
 	case ansicode.ClearModeBelow:
@@ -128,6 +133,7 @@ func (v *Terminal) Decaln() {
 // DeleteChars deletes n characters.
 func (v *Terminal) DeleteChars(n int) {
 	dbg.Printf("DeleteChars: n=%d\n", n)
+	v.scrollOrResizeYIfNeeded()
 	v.deleteCharacters(n)
 }
 
@@ -157,6 +163,7 @@ func (v *Terminal) DeviceStatus(n int) {
 // EraseChars erases n characters.
 func (v *Terminal) EraseChars(n int) {
 	dbg.Printf("EraseChars: n=%d\n", n)
+	v.scrollOrResizeYIfNeeded()
 	v.eraseCharacters(n)
 }
 
@@ -167,20 +174,25 @@ func (v *Terminal) Goto(y int, x int) {
 		// BUG: somehow this is what \e[H is being parsed as
 		y = 0
 	}
-	home(v, []int{y + 1, x + 1})
+	if y >= v.Height && !v.AutoResizeY {
+		y = v.Height - 1
+	}
+	if x >= v.Width && !v.AutoResizeX {
+		x = v.Width - 1
+	}
+	v.home(y, x)
 }
 
 // GotoCol moves the cursor to the specified column.
 func (v *Terminal) GotoCol(n int) {
 	dbg.Printf("GotoCol: n=%d\n", n)
-	home(v, []int{v.Cursor.Y + 1, n + 1})
+	v.home(v.Cursor.Y, n)
 }
 
 // GotoLine moves the cursor to the specified line.
 func (v *Terminal) GotoLine(n int) {
 	dbg.Printf("GotoLine: n=%d\n", n)
-	// NB: home is 1-indexed, hence the +1.
-	home(v, []int{n + 1, v.Cursor.X + 1})
+	v.home(n, v.Cursor.X)
 }
 
 // HorizontalTab sets the current position as a tab stop.
@@ -210,12 +222,14 @@ func (v *Terminal) Input(r rune) {
 // InsertBlank inserts n blank characters.
 func (v *Terminal) InsertBlank(n int) {
 	dbg.Printf("InsertBlank: n=%d\n", n)
+	v.scrollOrResizeYIfNeeded()
 	v.insertCharacters(n)
 }
 
 // InsertBlankLines inserts n blank lines.
 func (v *Terminal) InsertBlankLines(n int) {
 	dbg.Printf("InsertBlankLines: n=%d\n", n)
+	v.scrollOrResizeYIfNeeded()
 	v.insertLines(n)
 }
 
@@ -232,7 +246,7 @@ func (v *Terminal) LineFeed() {
 // MoveBackward moves the cursor backward n columns.
 func (v *Terminal) MoveBackward(n int) {
 	dbg.Printf("MoveBackward: n=%d\n", n)
-	home(v, []int{v.Cursor.Y + 1, v.Cursor.X - n + 1})
+	v.home(v.Cursor.Y, v.Cursor.X-n)
 }
 
 // MoveBackwardTabs moves the cursor backward n tab stops.
@@ -256,7 +270,7 @@ func (v *Terminal) MoveDownCr(n int) {
 // MoveForward moves the cursor forward n columns.
 func (v *Terminal) MoveForward(n int) {
 	dbg.Printf("MoveForward: n=%d\n", n)
-	home(v, []int{v.Cursor.Y + 1, v.Cursor.X + n + 1})
+	v.home(v.Cursor.Y, v.Cursor.X+n)
 }
 
 // MoveForwardTabs moves the cursor forward n tab stops.
@@ -342,7 +356,8 @@ func (v *Terminal) SaveCursorPosition() {
 
 // ScrollDown scrolls the screen down n lines.
 func (v *Terminal) ScrollDown(n int) {
-	dbg.Printf("TODO: ScrollDown: n=%d\n", n)
+	dbg.Printf("ScrollDown: n=%d\n", n)
+	v.scrollDownN(n)
 }
 
 // ScrollUp scrolls the screen up n lines.
@@ -418,7 +433,7 @@ func (v *Terminal) SetMode(mode ansicode.TerminalMode) {
 				dbg.Println("ALLOCATING ALT SCREEN")
 				v.Alt = newScreen(v.Height, v.Width)
 			}
-			swapAlt(v)
+			v.swapAlt()
 		}
 	case ansicode.TerminalModeBracketedPaste:
 		dbg.Println("SET BRACKETED PASTE")
@@ -582,6 +597,7 @@ const tabWidth = 8
 
 // Tab moves the cursor to the next tab stop.
 func (v *Terminal) Tab(n int) {
+	v.scrollOrResizeYIfNeeded()
 	target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
 	if !v.AutoResizeX && target >= v.Width {
 		target = v.Width - 1
@@ -639,7 +655,7 @@ func (v *Terminal) UnsetMode(mode ansicode.TerminalMode) {
 			dbg.Println("ALREADY NOT ALT")
 		} else {
 			dbg.Println("RESTORING MAIN SCREEN")
-			swapAlt(v)
+			v.swapAlt()
 		}
 	case ansicode.TerminalModeBracketedPaste:
 		dbg.Println("UNSET BRACKETED PASTE")

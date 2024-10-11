@@ -277,6 +277,11 @@ func (v *Terminal) scrollOrResizeYIfNeeded() {
 	}
 }
 
+func (v *Terminal) swapAlt() {
+	v.IsAlt = !v.IsAlt
+	v.Screen, v.Alt = v.Alt, v.Screen
+}
+
 func scrollUp[T any](arr [][]T, positions, start, end int, empty T) {
 	if start < 0 || end > len(arr) || start >= end || positions <= 0 {
 		return // handle invalid inputs
@@ -577,12 +582,12 @@ func (v *Terminal) scrollOne() {
 	v.Cursor.Y = v.Height - 1
 }
 
-// home moves the cursor to the coordinates y x. If y x are out of bounds, v.Err
-// is set.
 func (v *Terminal) home(y, x int) {
+	v.scrollOrResizeYIfNeeded()
 	v.Changes[v.Cursor.Y]++
 	v.wrap = false // cursor movement always resets the wrap state.
 	v.Cursor.Y, v.Cursor.X = y, x
+	v.scrollOrResizeYIfNeeded()
 	v.Changes[v.Cursor.Y]++
 }
 
@@ -630,6 +635,7 @@ func (v *Terminal) moveDown() {
 		// moving the cursor
 		v.scrollUpN(1)
 	} else {
+		v.scrollOrResizeYIfNeeded()
 		v.Changes[v.Cursor.Y]++
 		v.Cursor.Y++
 		v.scrollOrResizeYIfNeeded()
@@ -638,11 +644,12 @@ func (v *Terminal) moveDown() {
 }
 
 func (v *Terminal) moveUp() {
+	v.scrollOrResizeYIfNeeded()
 	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.Start {
 		// if we're at the bottom of the scroll region, scroll it instead of
 		// moving the cursor
 		v.scrollDownN(1)
-	} else {
+	} else if v.Cursor.Y > 0 {
 		v.Changes[v.Cursor.Y]++
 		v.Cursor.Y--
 		v.Changes[v.Cursor.Y]++
