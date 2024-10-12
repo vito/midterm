@@ -1,4 +1,3 @@
-[0m-rw-r--r--  1 vito vito     4010 Oct 11 17:04 screen.go                                                                 [0m
 [0m-rw-r--r--  1 vito vito     4298 Oct  2 14:34 Session.vim                                                               [0m
 [0m-rw-r--r--  1 vito vito     5395 Oct 11 17:09 shell                                                                     [0m
 [0m-rw-r--r--  1 vito vito    16865 Oct 11 17:08 terminal.go                                                               [0m
@@ -13,7 +12,8 @@
 [0m[1;92m❯[0m [0m[38;2;195;167;231mbash[0m[38;2;224;222;243m                                                                                                                  [0m
 [0m[1;92mvito@F16[0m:[0m[1;94m~/src/midterm[0m$ echo $'foo\nbar\n\e[31mbaz\e[0m\b\b\b\b\b\b\b\b\b\bq'[0m[38;2;224;222;243m                                           [0m
 [0mfoo                                                                                                                     [0m
-[0mbar                                                                                                              q      [0m
+[0mbar                                                                                                                     [0m
+[0mq[0m[31maz[0m                                                                                                                     [0m
 [0m[1;92mvito@F16[0m:[0m[1;94m~/src/midterm[0m$ echo $'foo\nbar\n\e[31mbaz\e[0m\bq'                                                             [0m
 [0mfoo                                                                                                                     [0m
 [0mbar                                                                                                                     [0m

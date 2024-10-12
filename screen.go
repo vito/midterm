@@ -94,8 +94,6 @@ func (v *Screen) resizeY(h int) {
 	if h > v.Height {
 		n := h - v.Height
 		for row := 0; row < n; row++ {
-			v.Content = append(v.Content, make([]rune, v.Width))
-			v.Changes = append(v.Changes, 0)
 			for col := 0; col < v.Width; col++ {
 				v.clear(v.Height+row, col, EmptyFormat)
 			}
@@ -123,7 +121,7 @@ func (v *Screen) resizeX(w int) {
 	} else if w < v.Width {
 		for i := range v.Content {
 			v.Content[i] = v.Content[i][:w]
-			v.Changes[i]++
+			v.changed(i, false)
 		}
 	}
 
@@ -135,7 +133,57 @@ func (v *Screen) resizeX(w int) {
 }
 
 func (v *Screen) clear(y, x int, format Format) {
-	v.Content[y][x] = ' '
+	v.paint(y, x, format, ' ')
+}
+
+func (v *Screen) paint(y, x int, format Format, r rune) {
+	v.ensureHeight(y)
+	row := v.Content[y]
+	for newX := len(row); newX <= x; newX++ {
+		row = append(row, ' ')
+	}
+	row[x] = r
+	v.Content[y] = row
 	v.Format.Paint(y, x, format)
+	v.changed(y, false)
+}
+
+func (v *Screen) moveRel(y, x int) {
+	v.moveAbs(v.Cursor.Y+y, v.Cursor.X+x)
+}
+
+func (v *Screen) moveAbs(y, x int) {
+	v.changed(v.Cursor.Y, true)
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	movedY := v.Cursor.Y != y
+	v.Cursor.Y = y
+	v.Cursor.X = x
+	if movedY {
+		v.changed(v.Cursor.Y, true)
+	}
+}
+
+func (v *Screen) changed(y int, moveOnly bool) {
+	if moveOnly && !v.CursorVisible {
+		return
+	}
+	v.ensureHeight(y)
 	v.Changes[y]++
+}
+
+func (v *Screen) ensureHeight(targetY int) {
+	for y := v.Height; y <= targetY; y++ {
+		v.Content = append(v.Content, make([]rune, v.Width))
+		for x := 0; x < v.Width; x++ {
+			v.Content[y][x] = ' '
+			v.Format.Paint(y, x, EmptyFormat)
+		}
+		v.Changes = append(v.Changes, 1)
+		v.Height++
+	}
 }

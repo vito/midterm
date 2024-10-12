@@ -38,7 +38,7 @@ func TestAutoResize(t *testing.T) {
 		buf := new(bytes.Buffer)
 		err := vt.Render(buf)
 		require.NoError(t, err)
-		require.Equal(t, "hey  \x1b[0m\nyo   \x1b[0m\nim a grower\x1b[0m\n     \x1b[0m", buf.String())
+		require.Equal(t, "hey  \x1b[0m\nyo   \x1b[0m\nim a grower\x1b[0m", buf.String())
 	})
 
 	t.Run("without an initial width", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestAutoResize(t *testing.T) {
 		buf := new(bytes.Buffer)
 		err := vt.Render(buf)
 		require.NoError(t, err)
-		require.Equal(t, "hey\x1b[0m\nyo\x1b[0m\nim a grower\x1b[0m\n\x1b[0m", buf.String())
+		require.Equal(t, "hey\x1b[0m\nyo\x1b[0m\nim a grower\x1b[0m", buf.String())
 	})
 
 	type action struct {
@@ -62,40 +62,36 @@ func TestAutoResize(t *testing.T) {
 	for _, example := range []action{
 		{"Backspace", (*midterm.Terminal).Backspace, 1},
 		{"CarriageReturn", (*midterm.Terminal).CarriageReturn, 1},
-		{"ClearLine", func(vt *midterm.Terminal) { vt.ClearLine(ansicode.LineClearModeAll) }, 1},
+		{"ClearLine right", func(vt *midterm.Terminal) { vt.ClearLine(ansicode.LineClearModeRight) }, 1},
+		{"ClearLine left", func(vt *midterm.Terminal) { vt.ClearLine(ansicode.LineClearModeLeft) }, 1},
+		{"ClearLine all", func(vt *midterm.Terminal) { vt.ClearLine(ansicode.LineClearModeAll) }, 1},
 		{"ClearScreen", func(vt *midterm.Terminal) { vt.ClearScreen(ansicode.ClearModeAll) }, 1},
 		{"DeleteChars", func(vt *midterm.Terminal) { vt.DeleteChars(1) }, 1},
-		{"DeleteLines", func(vt *midterm.Terminal) { vt.DeleteLines(1) }, 0},
+		{"DeleteLines", func(vt *midterm.Terminal) { vt.DeleteLines(1) }, 1},
 		{"EraseChars", func(vt *midterm.Terminal) { vt.EraseChars(1) }, 1},
 		{"Goto", func(vt *midterm.Terminal) { vt.Goto(3, 5) }, 4},
 		{"GotoCol", func(vt *midterm.Terminal) { vt.GotoCol(5) }, 1},
 		{"GotoLine", func(vt *midterm.Terminal) { vt.GotoLine(5) }, 6},
 		{"InsertBlank", func(vt *midterm.Terminal) { vt.InsertBlank(5) }, 1},
-		// TODO
-		// {"InsertBlankLines", func(vt *midterm.Terminal) { vt.InsertBlankLines(5) }, 6},
+		{"InsertBlankLines", func(vt *midterm.Terminal) { vt.InsertBlankLines(5) }, 6},
 		{"LineFeed", (*midterm.Terminal).LineFeed, 2},
 		{"MoveBackward", func(vt *midterm.Terminal) { vt.MoveBackward(5) }, 1},
 		{"MoveDown", func(vt *midterm.Terminal) { vt.MoveDown(5) }, 6},
 		{"MoveForward", func(vt *midterm.Terminal) { vt.MoveForward(5) }, 1},
 		{"MoveUp", func(vt *midterm.Terminal) { vt.MoveUp(5) }, 1},
 		{"ReverseIndex", (*midterm.Terminal).ReverseIndex, 1},
-		{"ScrollDown", func(vt *midterm.Terminal) { vt.ScrollDown(5) }, 0},
-		{"ScrollUp", func(vt *midterm.Terminal) { vt.ScrollUp(5) }, 0},
+		{"ScrollDown", func(vt *midterm.Terminal) { vt.ScrollDown(5) }, 1},
+		{"ScrollUp", func(vt *midterm.Terminal) { vt.ScrollUp(5) }, 1},
 		{"SetScrollingRegion", func(vt *midterm.Terminal) { vt.SetScrollingRegion(5, 8) }, 1},
 		{"Tab", func(vt *midterm.Terminal) { vt.Tab(3) }, 1},
 	} {
 		t.Run("handling "+example.name, func(t *testing.T) {
 			vt := midterm.NewAutoResizingTerminal()
 			example.fn(vt)
+			vt.Input('.')
 			require.Equal(t, example.height, vt.Height)
 		})
 	}
-
-	t.Run("resizes when backspacing", func(t *testing.T) {
-		vt := midterm.NewAutoResizingTerminal()
-		vt.Backspace()
-		require.Equal(t, vt.Height, 1)
-	})
 }
 
 func goldenTest(t *testing.T, name string) {

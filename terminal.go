@@ -211,21 +211,16 @@ func (v *Terminal) resize(h, w int) {
 // put puts r onto the current cursor's position, then advances the cursor.
 func (v *Terminal) put(r rune) {
 	if v.wrap {
-		v.Changes[v.Cursor.Y]++
 		v.Cursor.X = 0
-		v.Cursor.Y++
-		v.scrollOrResizeYIfNeeded()
+		v.moveDown()
 		v.wrap = false
 	}
 	x, y, f := v.Cursor.X, v.Cursor.Y, v.Cursor.F
-	v.Content[y][x] = r
-	v.Format.Paint(y, x, f)
+	v.paint(y, x, f, r)
 	if y > v.MaxY {
-		// track max character offset for UsedHeight()
 		v.MaxY = y
 	}
 	if x > v.MaxX {
-		// track max character offset for UsedHeight()
 		v.MaxX = x
 	}
 	v.advance()
@@ -236,8 +231,8 @@ func (v *Terminal) advance() {
 	if !v.AutoResizeX && v.Cursor.X == v.Width-1 {
 		v.wrap = true
 	} else {
-		v.Cursor.X++
-		v.Changes[v.Cursor.Y]++
+		v.moveRel(0, 1)
+		v.changed(v.Cursor.Y, true)
 	}
 }
 
@@ -245,35 +240,6 @@ func (v *Terminal) resizeY(h int) {
 	v.Screen.resizeY(h)
 	if v.Alt != nil {
 		v.Alt.resizeY(h)
-	}
-}
-
-func (v *Terminal) resizeXIfNeeded() {
-	// +1 because printing advances the cursor, and this is called before the print
-	target := v.Cursor.X + 1
-	row := v.Cursor.Y
-	content := v.Screen.Content[row]
-	if v.AutoResizeX && target > len(content) {
-		spaces := make([]rune, target-len(content))
-		dbg.Println("RESIZING X NEEDED", v.Cursor.X, "spaces", len(spaces))
-		for i := range spaces {
-			spaces[i] = ' '
-			v.Format.Paint(row, v.Cursor.X+i, v.Cursor.F)
-		}
-		v.Screen.Content[row] = append(content, spaces...)
-		v.Changes[row]++
-	}
-}
-
-func (v *Terminal) scrollOrResizeYIfNeeded() {
-	if v.Cursor.Y >= v.Height {
-		if v.AutoResizeY {
-			dbg.Println("RESIZING Y NEEDED", v.Cursor.Y, v.Height)
-			v.resizeY(v.Cursor.Y + 1)
-		} else {
-			dbg.Println("SCROLLING NEEDED", v.Cursor.Y, v.Height)
-			v.scrollOne()
-		}
 	}
 }
 
@@ -491,14 +457,14 @@ func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
 func (v *Terminal) insertCharacters(n int) {
 	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	v.Format.Insert(v.Cursor.Y, v.Cursor.X, v.Cursor.F, n)
-	v.Changes[v.Cursor.Y]++
+	v.changed(v.Cursor.Y, false)
 }
 
 func (v *Terminal) deleteCharacters(n int) {
 	v.wrap = false // delete characters resets the wrap state.
 	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
 	v.Format.Delete(v.Cursor.Y, v.Cursor.X, n)
-	v.Changes[v.Cursor.Y]++
+	v.changed(v.Cursor.Y, false)
 }
 
 func (v *Terminal) eraseCharacters(n int) {
@@ -507,10 +473,11 @@ func (v *Terminal) eraseCharacters(n int) {
 	for i := 0; i < n; i++ {
 		v.Format.Paint(v.Cursor.Y, v.Cursor.X+i, v.Cursor.F)
 	}
-	v.Changes[v.Cursor.Y]++
+	v.changed(v.Cursor.Y, false)
 }
 
 func (v *Terminal) insertLines(n int) {
+	v.ensureHeight(v.Cursor.Y + n)
 	start, end := v.scrollRegion()
 	if v.Cursor.Y < start || v.Cursor.Y > end {
 		return
@@ -521,7 +488,7 @@ func (v *Terminal) insertLines(n int) {
 		return &Region{Size: v.Width, F: v.Cursor.F}
 	})
 	insertLinesShallow(v.Changes, v.Cursor.Y, n, start, end, func() uint64 {
-		return 0
+		return 1
 	})
 }
 
@@ -536,7 +503,7 @@ func (v *Terminal) deleteLines(n int) {
 		return &Region{Size: v.Width, F: v.Cursor.F}
 	})
 	deleteLinesShallow(v.Changes, v.Cursor.Y, n, start, end, func() uint64 {
-		return 0
+		return 1
 	})
 }
 
@@ -548,7 +515,7 @@ func (v *Terminal) scrollDownN(n int) {
 		return &Region{Size: v.Width, F: v.Cursor.F}
 	})
 	scrollDownShallow(v.Changes, n, start, end, func() uint64 {
-		return 0
+		return 1
 	})
 }
 
@@ -565,7 +532,7 @@ func (v *Terminal) scrollUpN(n int) {
 		return &Region{Size: v.Width, F: v.Cursor.F}
 	})
 	scrollUpShallow(v.Changes, n, start, end, func() uint64 {
-		return 0
+		return 1
 	})
 }
 
@@ -583,12 +550,8 @@ func (v *Terminal) scrollOne() {
 }
 
 func (v *Terminal) home(y, x int) {
-	v.scrollOrResizeYIfNeeded()
-	v.Changes[v.Cursor.Y]++
 	v.wrap = false // cursor movement always resets the wrap state.
-	v.Cursor.Y, v.Cursor.X = y, x
-	v.scrollOrResizeYIfNeeded()
-	v.Changes[v.Cursor.Y]++
+	v.moveAbs(y, x)
 }
 
 // eraseDirection is the logical direction in which an erase command happens,
@@ -610,7 +573,7 @@ const (
 func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	// Erasing lines and columns clears the wrap state.
 	v.wrap = false
-	if y1 > y2 {
+	if y1 > y2 && y2 > 0 {
 		y1, y2 = y2, y1
 	}
 	if x1 > x2 && x2 > 0 {
@@ -618,6 +581,9 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	}
 	f := v.Cursor.F
 	for y := y1; y <= y2; y++ {
+		if len(v.Content) <= y {
+			continue
+		}
 		rowX2 := x2
 		if rowX2 < 0 {
 			// to handle dynamic width, assume "clear to end"
@@ -632,27 +598,25 @@ func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 func (v *Terminal) moveDown() {
 	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.End {
 		// if we're at the bottom of the scroll region, scroll it instead of
-		// moving the cursor
+		// moving the cursor, so the cursor stays at the bottom of the scroll
+		// region
+		v.scrollUpN(1)
+	} else if v.Cursor.Y == v.Height-1 && !v.AutoResizeY {
+		// if we're at the bottom of the entire screen, and we're not
+		// configured to auto-resize, scroll the screen
 		v.scrollUpN(1)
 	} else {
-		v.scrollOrResizeYIfNeeded()
-		v.Changes[v.Cursor.Y]++
-		v.Cursor.Y++
-		v.scrollOrResizeYIfNeeded()
-		v.Changes[v.Cursor.Y]++
+		v.moveRel(1, 0)
 	}
 }
 
 func (v *Terminal) moveUp() {
-	v.scrollOrResizeYIfNeeded()
-	if v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.Start {
+	if v.Cursor.Y == 0 || v.ScrollRegion != nil && v.Cursor.Y == v.ScrollRegion.Start {
 		// if we're at the bottom of the scroll region, scroll it instead of
 		// moving the cursor
 		v.scrollDownN(1)
-	} else if v.Cursor.Y > 0 {
-		v.Changes[v.Cursor.Y]++
-		v.Cursor.Y--
-		v.Changes[v.Cursor.Y]++
+	} else {
+		v.moveRel(-1, 0)
 	}
 }
 

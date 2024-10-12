@@ -12,23 +12,8 @@ import (
 
 // Backspace moves the cursor one position to the left.
 func (v *Terminal) Backspace() {
-	v.scrollOrResizeYIfNeeded()
-	v.Changes[v.Cursor.Y]++
-	v.Cursor.X--
-	if v.Cursor.X < 0 {
-		if v.Cursor.Y == 0 {
-			v.Cursor.X = 0
-		} else {
-			v.Cursor.Y--
-			v.scrollOrResizeYIfNeeded()
-			if v.AutoResizeX {
-				v.Cursor.X = len(v.Content[v.Cursor.Y]) - 1
-			} else {
-				v.Cursor.X = v.Width - 1
-			}
-			v.Changes[v.Cursor.Y]++
-		}
-	}
+	v.changed(v.Cursor.Y, true)
+	v.moveRel(0, -1)
 }
 
 // Bell rings the bell.
@@ -38,16 +23,12 @@ func (v *Terminal) Bell() {
 
 // CarriageReturn moves the cursor to the beginning of the line.
 func (v *Terminal) CarriageReturn() {
-	v.Cursor.X = 0
-	v.scrollOrResizeYIfNeeded()
-	v.Changes[v.Cursor.Y]++
-	v.wrap = false
+	v.home(v.Cursor.Y, 0)
 }
 
 // ClearLine clears the line.
 func (v *Terminal) ClearLine(mode ansicode.LineClearMode) {
 	dbg.Println("ClearLine", mode)
-	v.scrollOrResizeYIfNeeded()
 	y, x, w := v.Cursor.Y, v.Cursor.X, v.Width
 	switch mode {
 	case ansicode.LineClearModeRight:
@@ -62,7 +43,6 @@ func (v *Terminal) ClearLine(mode ansicode.LineClearMode) {
 // ClearScreen clears the screen.
 func (v *Terminal) ClearScreen(mode ansicode.ClearMode) {
 	dbg.Println("ClearScreen", mode)
-	v.scrollOrResizeYIfNeeded()
 	y, x, w, h := v.Cursor.Y, v.Cursor.X, v.Width, v.Height
 	switch mode {
 	case ansicode.ClearModeBelow:
@@ -133,7 +113,6 @@ func (v *Terminal) Decaln() {
 // DeleteChars deletes n characters.
 func (v *Terminal) DeleteChars(n int) {
 	dbg.Printf("DeleteChars: n=%d\n", n)
-	v.scrollOrResizeYIfNeeded()
 	v.deleteCharacters(n)
 }
 
@@ -163,7 +142,6 @@ func (v *Terminal) DeviceStatus(n int) {
 // EraseChars erases n characters.
 func (v *Terminal) EraseChars(n int) {
 	dbg.Printf("EraseChars: n=%d\n", n)
-	v.scrollOrResizeYIfNeeded()
 	v.eraseCharacters(n)
 }
 
@@ -214,22 +192,18 @@ func (v *Terminal) IdentifyTerminal(b byte) {
 // Input inputs a rune to be displayed.
 func (v *Terminal) Input(r rune) {
 	dbg.Printf("Input: %c\n", r)
-	v.scrollOrResizeYIfNeeded()
-	v.resizeXIfNeeded()
 	v.put(r)
 }
 
 // InsertBlank inserts n blank characters.
 func (v *Terminal) InsertBlank(n int) {
 	dbg.Printf("InsertBlank: n=%d\n", n)
-	v.scrollOrResizeYIfNeeded()
 	v.insertCharacters(n)
 }
 
 // InsertBlankLines inserts n blank lines.
 func (v *Terminal) InsertBlankLines(n int) {
 	dbg.Printf("InsertBlankLines: n=%d\n", n)
-	v.scrollOrResizeYIfNeeded()
 	v.insertLines(n)
 }
 
@@ -597,7 +571,6 @@ const tabWidth = 8
 
 // Tab moves the cursor to the next tab stop.
 func (v *Terminal) Tab(n int) {
-	v.scrollOrResizeYIfNeeded()
 	target := ((v.Cursor.X / tabWidth) + 1) * tabWidth
 	if !v.AutoResizeX && target >= v.Width {
 		target = v.Width - 1
@@ -605,7 +578,6 @@ func (v *Terminal) Tab(n int) {
 	format := v.Cursor.F
 	for x := v.Cursor.X; x < target; x++ {
 		if v.AutoResizeX {
-			v.resizeXIfNeeded()
 			v.put(' ')
 		} else {
 			v.clear(v.Cursor.Y, x, format)
