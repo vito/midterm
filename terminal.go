@@ -43,6 +43,10 @@ type Terminal struct {
 	// Enable "raw" mode. Line endings do not imply a carriage return.
 	Raw bool
 
+	// AppendOnly instructs the terminal to not respect sequences that might
+	// cause output to be lost - for example, setting a scrolling region.
+	AppendOnly bool
+
 	// wrap indicates that we've reached the end of the screen and need to wrap
 	// to the next line if another character is printed.
 	wrap bool

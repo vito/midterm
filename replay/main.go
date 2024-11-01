@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -30,6 +31,10 @@ func main() {
 		}
 	case "replay":
 		if err := replay(out); err != nil {
+			log.Fatal(err)
+		}
+	case "replay-logs":
+		if err := replayLogs(out); err != nil {
 			log.Fatal(err)
 		}
 	default:
@@ -131,6 +136,31 @@ func replay(out string) error {
 		// 	fmt.Printf("Wrote %q\n", string(f))
 		// 	fmt.Print(after.String())
 		// }
+	}
+
+	renderVt(os.Stdout, vt)
+
+	return nil
+}
+
+func replayLogs(out string) error {
+	vt := midterm.NewAutoResizingTerminal()
+	vt.AppendOnly = true
+	// midterm.DebugLogsTo(os.Stderr)
+
+	f, err := os.Open(out)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	scan := bufio.NewScanner(f)
+	lines := 0
+	for scan.Scan() {
+		lines++
+		// fmt.Fprintf(os.Stderr, "%d WRITING: %q\n", lines, scan.Text())
+		vt.Write(scan.Bytes())
+		vt.LineFeed()
 	}
 
 	renderVt(os.Stdout, vt)

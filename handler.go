@@ -430,6 +430,17 @@ func (v *Terminal) SetModifyOtherKeys(modify ansicode.ModifyOtherKeys) {
 
 // SetScrollingRegion sets the scrolling region.
 func (v *Terminal) SetScrollingRegion(top int, bottom int) {
+	if v.AppendOnly {
+		dbg.Printf("SetScrollingRegion: top=%d, bottom=%d (ignored)\n", top, bottom)
+		return
+	}
+
+	if bottom < top {
+		dbg.Printf("SetScrollingRegion: top=%d, bottom=%d (insane)\n", top, bottom)
+		// sanity check
+		return
+	}
+
 	dbg.Printf("SetScrollingRegion: top=%d, bottom=%d\n", top, bottom)
 
 	if top == 1 && bottom == v.Height ||
