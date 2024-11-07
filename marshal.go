@@ -46,7 +46,7 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 
 func (s *Screen) marshalBinary() (data []byte, err error) {
 	var buffer bytes.Buffer
-	for i := 0; i < s.Height; i++ {
+	for i := 0; i <= s.MaxY; i++ {
 		if i > 0 {
 			_, _ = io.WriteString(&buffer, "\r\n")
 		}
@@ -106,10 +106,16 @@ func (s *Screen) marshalLine(row int) (data []byte, err error) {
 	var pos int
 	for region := range s.Format.Regions(row) {
 		format(region.F)
-		content := string(s.Content[row][pos : pos+region.Size])
+		end := min(pos+region.Size, s.MaxX+1)
+		content := string(s.Content[row][pos:end])
 		_, err = buffer.WriteString(content)
 		if err != nil {
 			return
+		}
+
+		if end > s.MaxX {
+			//Don't write the rest of the line if the screen doesn't extend that far
+			break
 		}
 
 		pos += region.Size
