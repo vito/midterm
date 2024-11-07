@@ -13,7 +13,35 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 	vt.mut.Lock()
 	defer vt.mut.Unlock()
 
-	return vt.marshalBinary()
+	var mainScreen, altScreen *Screen
+	if vt.IsAlt {
+		mainScreen = vt.Alt
+		altScreen = vt.Screen
+	} else {
+		mainScreen = vt.Screen
+		altScreen = vt.Alt
+	}
+	var buffer bytes.Buffer
+	var screenBytes []byte
+	screenBytes, err = mainScreen.marshalBinary()
+	if err != nil {
+		return
+	}
+	buffer.Write(screenBytes)
+	if altScreen != nil {
+		buffer.WriteString(termenv.CSI + termenv.AltScreenSeq)
+		screenBytes, err = altScreen.marshalBinary()
+		if err != nil {
+			return
+		}
+		buffer.Write(screenBytes)
+		if !vt.IsAlt {
+			buffer.WriteString(termenv.CSI + termenv.ExitAltScreenSeq)
+		}
+	}
+
+	data = buffer.Bytes()
+	return
 }
 
 func (s *Screen) marshalBinary() (data []byte, err error) {
