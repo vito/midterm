@@ -79,7 +79,6 @@ func marshalBinaryTest(t *testing.T, name string) {
 
 func reconcileScreen(expected *midterm.Screen, actual *midterm.Screen) {
 	actual.Changes = expected.Changes
-	actual.ScrollRegion = expected.ScrollRegion
 	if actual.MaxY < expected.MaxY {
 		actual.MaxY = expected.MaxY
 	}

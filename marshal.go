@@ -91,6 +91,13 @@ func (s *Screen) marshalBinary() (data []byte, err error) {
 		buffer.Write(line)
 	}
 
+	if s.ScrollRegion != nil {
+		_, err = fmt.Fprintf(&buffer, termenv.CSI+termenv.ChangeScrollingRegionSeq, s.ScrollRegion.Start+1, s.ScrollRegion.End+1)
+		if err != nil {
+			return
+		}
+	}
+
 	var cursor []byte
 	cursor, err = s.Cursor.MarshalBinary()
 	if err != nil {
