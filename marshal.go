@@ -13,31 +13,57 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 	vt.mut.Lock()
 	defer vt.mut.Unlock()
 
-	var mainScreen, altScreen *Screen
-	if vt.IsAlt {
-		mainScreen = vt.Alt
-		altScreen = vt.Screen
-	} else {
-		mainScreen = vt.Screen
-		altScreen = vt.Alt
-	}
 	var buffer bytes.Buffer
-	var screenBytes []byte
-	screenBytes, err = mainScreen.marshalBinary()
-	if err != nil {
-		return
-	}
-	buffer.Write(screenBytes)
-	if altScreen != nil {
-		buffer.WriteString(termenv.CSI + termenv.AltScreenSeq)
-		screenBytes, err = altScreen.marshalBinary()
+	var bytez []byte
+	// The current screen must be serialized last so that we can hack
+	// the wrap flag into the correct state.
+	if vt.Alt != nil {
+		if !vt.IsAlt {
+			buffer.WriteString(termenv.CSI + termenv.AltScreenSeq)
+		}
+		bytez, err = vt.Alt.marshalBinary()
 		if err != nil {
 			return
 		}
-		buffer.Write(screenBytes)
-		if !vt.IsAlt {
+		buffer.Write(bytez)
+		if vt.IsAlt {
+			buffer.WriteString(termenv.CSI + termenv.AltScreenSeq)
+		} else {
 			buffer.WriteString(termenv.CSI + termenv.ExitAltScreenSeq)
 		}
+	}
+	bytez, err = vt.Screen.marshalBinary()
+	if err != nil {
+		return
+	}
+	buffer.Write(bytez)
+
+	if vt.wrap { // Hack to force wrap flag into correct state
+		row := vt.Screen.Cursor.Y
+		col := vt.Screen.Cursor.X
+
+		_, _ = fmt.Fprintf(&buffer, termenv.CSI+termenv.CursorPositionSeq, row+1, col+1)
+
+		var region *Region
+		for region = vt.Screen.Format.Rows[row]; region.Next != nil; region = region.Next {
+			//Seek to the last region since we're always targeting the end of the line
+		}
+
+		bytez, err = region.F.MarshalBinary()
+		if err != nil {
+			return
+		}
+		content := vt.Screen.Content[row][col]
+		_, err = buffer.WriteRune(content)
+		if err != nil {
+			return
+		}
+
+		bytez, err = vt.Screen.Cursor.F.MarshalBinary()
+		if err != nil {
+			return
+		}
+		buffer.Write(bytez)
 	}
 
 	data = buffer.Bytes()
