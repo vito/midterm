@@ -38,6 +38,13 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 	}
 	buffer.Write(bytez)
 
+	if vt.Title != "" {
+		_, err = fmt.Fprintf(&buffer, termenv.OSC+termenv.SetWindowTitleSeq, vt.Title)
+		if err != nil {
+			return
+		}
+	}
+
 	if vt.wrap { // Hack to force wrap flag into correct state
 		row := vt.Screen.Cursor.Y
 		col := vt.Screen.Cursor.X
