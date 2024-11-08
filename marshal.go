@@ -243,6 +243,11 @@ func (c Cursor) MarshalBinary() (data []byte, err error) {
 		return
 	}
 
+	_, err = fmt.Fprintf(&buffer, termenv.CSI+"%d q", c.S+1)
+	if err != nil {
+		return
+	}
+
 	data = buffer.Bytes()
 	return
 }
