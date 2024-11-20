@@ -2,6 +2,7 @@ package midterm
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -218,14 +219,31 @@ func (f Format) MarshalBinary() (data []byte, err error) {
 	// Handling the foreground and background down here is a hack to compensate for this bug:
 	// https://github.com/danielgatis/go-ansicode/issues/4
 	if f.Fg != nil {
-		res += termenv.CSI + f.Fg.Sequence(false) + "m"
+		res += termenv.CSI + marshalColor(f.Fg, false) + "m"
 		//styles = append(styles, f.Fg.Sequence(false))
 	}
 	if f.Bg != nil {
-		res += termenv.CSI + f.Bg.Sequence(true) + "m"
+		res += termenv.CSI + marshalColor(f.Bg, true) + "m"
 		//styles = append(styles, f.Bg.Sequence(true))
 	}
 	return []byte(res), nil
+}
+
+// Workaround for what termenv uses since its floats have rounding issues
+func marshalColor(color termenv.Color, bg bool) string {
+	if rgb, ok := color.(termenv.RGBColor); ok {
+		rgb.Sequence(false)
+		hexString := string(rgb)
+		hexBytes, _ := hex.DecodeString(hexString[1:])
+		var prefix string
+		if bg {
+			prefix = termenv.Background
+		} else {
+			prefix = termenv.Foreground
+		}
+		return fmt.Sprintf("%s;2;%d;%d;%d", prefix, hexBytes[0], hexBytes[1], hexBytes[2])
+	}
+	return color.Sequence(bg)
 }
 
 func (c Cursor) MarshalBinary() (data []byte, err error) {

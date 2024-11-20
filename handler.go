@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/danielgatis/go-ansicode"
+	"github.com/lucasb-eyer/go-colorful"
 	"github.com/muesli/termenv"
 )
 
@@ -525,21 +526,6 @@ func (v *Terminal) SetTerminalCharAttribute(attr ansicode.TerminalCharAttribute)
 	}
 }
 
-// RGBColor Lossless alternative to what termenv uses since its floats have rounding issues
-type RGBColor struct {
-	R, G, B uint8
-}
-
-func (f RGBColor) Sequence(bg bool) string {
-	prefix := termenv.Foreground
-	if bg {
-		prefix = termenv.Background
-	}
-	return fmt.Sprintf("%s;2;%d;%d;%d", prefix, f.R, f.G, f.B)
-}
-
-var _ termenv.Color = RGBColor{}
-
 func attrColor(attr ansicode.TerminalCharAttribute) termenv.Color {
 	switch {
 	case attr.NamedColor != nil:
@@ -568,12 +554,12 @@ func attrColor(attr ansicode.TerminalCharAttribute) termenv.Color {
 		dbg.Println("INDEXED COLOR:", attr.IndexedColor.Index)
 		return termenv.ANSI256Color(attr.IndexedColor.Index)
 	case attr.RGBColor != nil:
-		dbg.Println("RGB COLOR:", attr.RGBColor)
-		return RGBColor{
-			R: attr.RGBColor.R,
-			G: attr.RGBColor.G,
-			B: attr.RGBColor.B,
+		color := colorful.Color{
+			R: float64(attr.RGBColor.R) / 255,
+			G: float64(attr.RGBColor.G) / 255,
+			B: float64(attr.RGBColor.B) / 255,
 		}
+		return termenv.RGBColor(color.Hex())
 	default:
 		dbg.Println("UNKNOWN FOREGROUND COLOR:", attr)
 	}
