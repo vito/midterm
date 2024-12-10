@@ -180,6 +180,13 @@ func (f Format) MarshalBinary() (data []byte, err error) {
 		styles = append(styles, termenv.FaintSeq)
 	}
 
+	if f.Fg != nil {
+		styles = append(styles, marshalColor(f.Fg, false))
+	}
+	if f.Bg != nil {
+		styles = append(styles, marshalColor(f.Bg, true))
+	}
+
 	if f.IsItalic() {
 		styles = append(styles, termenv.ItalicSeq)
 	}
@@ -216,16 +223,6 @@ func (f Format) MarshalBinary() (data []byte, err error) {
 		res += fmt.Sprintf("%s%sm", termenv.CSI, strings.Join(styles, ";"))
 	}
 
-	// Handling the foreground and background down here is a hack to compensate for this bug:
-	// https://github.com/danielgatis/go-ansicode/issues/4
-	if f.Fg != nil {
-		res += termenv.CSI + marshalColor(f.Fg, false) + "m"
-		//styles = append(styles, f.Fg.Sequence(false))
-	}
-	if f.Bg != nil {
-		res += termenv.CSI + marshalColor(f.Bg, true) + "m"
-		//styles = append(styles, f.Bg.Sequence(true))
-	}
 	return []byte(res), nil
 }
 
