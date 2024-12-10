@@ -6,8 +6,8 @@ github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 h1:q2hJAaP1k2
 github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81/go.mod h1:YynlIjWYF8myEu6sdkwKIvGQq+cOckRm6So2avqoYAk=
 github.com/creack/pty v1.1.18 h1:n56/Zwd5o6whRC5PMGretI4IdRLlmBXYNjScPaBgsbY=
 github.com/creack/pty v1.1.18/go.mod h1:MOBLtS5ELjhRRrroQr9kyvTxUAFNvYEK993ew/Vr4O4=
-github.com/danielgatis/go-ansicode v1.0.6 h1:OO8DcQVS0QxcCrG8NjdJDwvjBnDvgDF9Gp3VgADpDW4=
-github.com/danielgatis/go-ansicode v1.0.6/go.mod h1:xft3lPCsvHAC9KEGRcEzX+Jm8bTyUbya4rk7zD/nWvk=
+github.com/danielgatis/go-ansicode v1.0.7 h1:ozOFtNlQHgI3lMJFbT0CxqbbToqtT7mu8GXOwq10Xn0=
+github.com/danielgatis/go-ansicode v1.0.7/go.mod h1:xft3lPCsvHAC9KEGRcEzX+Jm8bTyUbya4rk7zD/nWvk=
 github.com/danielgatis/go-iterator v0.0.1 h1:pTptWDVAKzR0EUdtfmFMP3v+hSetqB091V9um1DTO8I=
 github.com/danielgatis/go-iterator v0.0.1/go.mod h1:+gTbPAMdVIKwmqw7kr/mo5IFIzz2MFiRyYylcRvgbHs=
 github.com/danielgatis/go-utf8 v1.0.0 h1:M7z8heSUa2PF1NoxgD0X6LbOAqMskMf433lFP/Qtal0=
