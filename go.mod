@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/creack/pty v1.1.18
-	github.com/danielgatis/go-ansicode v1.0.6
+	github.com/danielgatis/go-ansicode v1.0.7
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/muesli/termenv v0.15.1
 	github.com/sebdah/goldie/v2 v2.5.3
