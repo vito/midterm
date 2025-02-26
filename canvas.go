@@ -344,7 +344,7 @@ func (canvas *Canvas) ResizeX(w int) {
 }
 
 func (region *Region) String() string {
-	return fmt.Sprintf("%s:%d", region.F.Render(nil, nil), region.Size)
+	return fmt.Sprintf("%s:%d", region.F.Render(), region.Size)
 }
 
 func (region *Region) consumeNext() {

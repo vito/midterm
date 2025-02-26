@@ -50,7 +50,7 @@ func (line Line) Display() string {
 		f := line.Format[col]
 		if f != lastFormat {
 			lastFormat = f
-			out += f.Render(nil, nil)
+			out += f.Render()
 		}
 		out += string(r)
 	}
@@ -74,7 +74,7 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 			// if lastFormat != EmptyFormat {
 			// 	fmt.Fprint(w, resetSeq)
 			// }
-			fmt.Fprint(w, f.Render(fg, bg))
+			fmt.Fprint(w, f.RenderFgBg(fg, bg))
 			lastFormat = f
 		}
 	}
@@ -135,7 +135,11 @@ func brighten(color termenv.Color) termenv.Color {
 	}
 }
 
-func (f Format) Render(fg, bg termenv.Color) string {
+func (f Format) Render() string {
+	return f.RenderFgBg(nil, nil)
+}
+
+func (f Format) RenderFgBg(fg, bg termenv.Color) string {
 	styles := []string{}
 
 	if f.IsBold() {
