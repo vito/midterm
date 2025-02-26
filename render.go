@@ -10,13 +10,17 @@ import (
 )
 
 func (vt *Terminal) Render(w io.Writer) error {
+	return vt.RenderFgBg(w, nil, nil)
+}
+
+func (vt *Terminal) RenderFgBg(w io.Writer, fg, bg termenv.Color) error {
 	vt.mut.Lock()
 	defer vt.mut.Unlock()
-	for i := 0; i < vt.Height; i++ {
+	for i := range vt.Height {
 		if i > 0 {
 			fmt.Fprintln(w)
 		}
-		err := vt.renderLine(w, i)
+		err := vt.renderLine(w, i, fg, bg)
 		if err != nil {
 			return err
 		}
@@ -25,9 +29,13 @@ func (vt *Terminal) Render(w io.Writer) error {
 }
 
 func (vt *Terminal) RenderLine(w io.Writer, row int) error {
+	return vt.RenderLineFgBg(w, row, nil, nil)
+}
+
+func (vt *Terminal) RenderLineFgBg(w io.Writer, row int, fg, bg termenv.Color) error {
 	vt.mut.Lock()
 	defer vt.mut.Unlock()
-	return vt.renderLine(w, row)
+	return vt.renderLine(w, row, fg, bg)
 }
 
 type Line struct {
@@ -42,7 +50,7 @@ func (line Line) Display() string {
 		f := line.Format[col]
 		if f != lastFormat {
 			lastFormat = f
-			out += f.Render()
+			out += f.Render(nil, nil)
 		}
 		out += string(r)
 	}
@@ -51,7 +59,7 @@ func (line Line) Display() string {
 
 var ReverseFormat = Format{Properties: ReverseBit}
 
-func (vt *Terminal) renderLine(w io.Writer, row int) error {
+func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error {
 	if row >= len(vt.Content) {
 		return fmt.Errorf("line %d exceeds content height", row)
 	}
@@ -66,7 +74,7 @@ func (vt *Terminal) renderLine(w io.Writer, row int) error {
 			// if lastFormat != EmptyFormat {
 			// 	fmt.Fprint(w, resetSeq)
 			// }
-			fmt.Fprint(w, f.Render())
+			fmt.Fprint(w, f.Render(fg, bg))
 			lastFormat = f
 		}
 	}
@@ -123,7 +131,7 @@ func brighten(color termenv.Color) termenv.Color {
 	}
 }
 
-func (f Format) Render() string {
+func (f Format) Render(fg, bg termenv.Color) string {
 	styles := []string{}
 
 	if f.IsBold() {
@@ -135,9 +143,13 @@ func (f Format) Render() string {
 
 	if f.Fg != nil {
 		styles = append(styles, f.Fg.Sequence(false))
+	} else if fg != nil {
+		styles = append(styles, fg.Sequence(false))
 	}
 	if f.Bg != nil {
 		styles = append(styles, f.Bg.Sequence(true))
+	} else if bg != nil {
+		styles = append(styles, bg.Sequence(true))
 	}
 
 	if f.IsItalic() {
