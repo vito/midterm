@@ -79,6 +79,10 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 		}
 	}
 
+	if fg != nil || bg != nil {
+		format(Format{Fg: fg, Bg: bg})
+	}
+
 	for region := range vt.Format.Regions(row) {
 		line := vt.Content[row]
 
