@@ -136,6 +136,19 @@ func (v *Screen) clear(y, x int, format Format) {
 	v.paint(y, x, format, ' ')
 }
 
+// clearRow efficiently clears an entire row to spaces with the given format.
+func (v *Screen) clearRow(y int, format Format) {
+	if y >= len(v.Content) {
+		return
+	}
+	row := v.Content[y]
+	for i := range row {
+		row[i] = ' '
+	}
+	v.Format.ClearRow(y, format)
+	v.changed(y, false)
+}
+
 func (v *Screen) paint(y, x int, format Format, r rune) {
 	v.ensureHeight(y)
 	row := v.Content[y]

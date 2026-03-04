@@ -347,6 +347,14 @@ func (region *Region) String() string {
 	return fmt.Sprintf("%s:%d", region.F.Render(), region.Size)
 }
 
+// ClearRow resets a row to a single region with EmptyFormat.
+func (canvas *Canvas) ClearRow(row int, format Format) {
+	if row >= len(canvas.Rows) {
+		return
+	}
+	canvas.Rows[row] = &Region{F: format, Size: canvas.Width}
+}
+
 func (region *Region) consumeNext() {
 	next := region.Next
 	if next != nil {
