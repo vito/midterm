@@ -52,6 +52,10 @@ type Terminal struct {
 	// to the next line if another character is printed.
 	wrap bool
 
+	// insertMode indicates whether printable input
+	// should shift row contents right.
+	insertMode bool
+
 	*ansicode.Decoder
 
 	// onResize is a hook called every time the terminal resizes.
@@ -147,6 +151,7 @@ func (v *Terminal) Reset() {
 	v.mut.Lock()
 	defer v.mut.Unlock()
 	v.reset()
+	v.insertMode = false
 }
 
 func (v *Terminal) UsedHeight() int {
@@ -247,6 +252,9 @@ func (v *Terminal) put(r rune) {
 		v.wrap = false
 	}
 	x, y, f := v.Cursor.X, v.Cursor.Y, v.Cursor.F
+	if v.insertMode {
+		v.insertCharacters(1)
+	}
 	v.paint(y, x, f, r)
 	if y > v.MaxY {
 		v.MaxY = y

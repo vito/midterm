@@ -202,8 +202,70 @@ func TestResizeGrowingHeightThenShrinkWidth(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func eachFrame(r io.Reader, callback func(frame int, segment []byte)) {
-	eachNthFrame(r, 1, callback)
+func TestInsertModePreservesShiftedContentAcrossLines(t *testing.T) {
+	term := midterm.NewTerminal(24, 80)
+	term.Raw = true
+
+	// Seed the two-line prompt before the redraw:
+	//
+	// Please answer: first
+	// (▼ for other options)
+	_, err := io.WriteString(term, "\r\x1b[JPlease answer: first \r\n(▼ for other options)")
+	require.NoError(t, err)
+
+	// Replace "first" with "second",
+	// and insert "▲" and "▼" on the next line
+	// so the existing space shifts:
+	//
+	// Please answer: second
+	// (▲▼ for other options)
+	_, err = io.WriteString(term, "\x1b[A\x1b[6Dsecond\x1b[4h \x1b[4l\r\n\x1b[C▲\x1b[4h▼\x1b[4l")
+	require.NoError(t, err)
+
+	require.Equal(t, "Please answer: second", strings.TrimRight(string(term.Content[0]), " "))
+	require.Equal(t, "(▲▼ for other options)", strings.TrimRight(string(term.Content[1]), " "))
+}
+
+func TestInsertModeShiftsSingleLineContent(t *testing.T) {
+	term := midterm.NewTerminal(1, 8)
+	term.Raw = true
+
+	// Start with the cursor after the final "e":
+	//
+	// abcde^
+	_, err := io.WriteString(term, "abcde")
+	require.NoError(t, err)
+
+	// Return to column 3, enable insert mode, and insert a space:
+	//
+	// abc^de
+	// abc ^de
+	_, err = io.WriteString(term, "\r\x1b[3C\x1b[4h \x1b[4l")
+	require.NoError(t, err)
+
+	require.Equal(t, "abc de", strings.TrimRight(string(term.Content[0]), " "))
+}
+
+func TestUnsetInsertModeRestoresReplaceMode(t *testing.T) {
+	term := midterm.NewTerminal(1, 8)
+	term.Raw = true
+
+	// Start with the cursor after the final "e":
+	//
+	// abcde^
+	_, err := io.WriteString(term, "abcde")
+	require.NoError(t, err)
+
+	// Insert a space at column 3, disable insert mode, then overwrite the "d"
+	// with "Z" at the next cursor position:
+	//
+	// abc^de
+	// abc ^de
+	// abc Z^e
+	_, err = io.WriteString(term, "\r\x1b[3C\x1b[4h \x1b[4lZ")
+	require.NoError(t, err)
+
+	require.Equal(t, "abc Ze", strings.TrimRight(string(term.Content[0]), " "))
 }
 
 func eachNthFrame(r io.Reader, n int, callback func(frame int, segment []byte)) {
