@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/danielgatis/go-ansicode"
+	"github.com/muesli/termenv"
 )
 
 // Terminal represents a raw terminal capable of handling VT100 and VT102 ANSI
@@ -60,6 +61,19 @@ type Terminal struct {
 	// of the visible screen region.
 	onScrollback OnScrollbackFunc
 
+	// SearchHighlights holds per-row highlight ranges, keyed by row index.
+	// Set by Search() or directly by the caller; consulted by renderLine.
+	SearchHighlights map[int][]SearchHighlight
+
+	// SearchMatchStyle is the Format override for non-current matches.
+	SearchMatchStyle Format
+
+	// SearchCurrentStyle is the Format override for the current match.
+	SearchCurrentStyle Format
+
+	// SearchMatches stores ordered match locations from the last Search() call.
+	SearchMatches []SearchMatch
+
 	// for synchronizing e.g. writes and async resizing
 	mut sync.Mutex
 }
@@ -102,6 +116,16 @@ func NewAutoResizingTerminal() *Terminal {
 func NewTerminal(rows, cols int) *Terminal {
 	v := &Terminal{
 		Screen: newScreen(rows, cols),
+		SearchMatchStyle: Format{
+			Bg:         termenv.ANSIWhite,
+			Fg:         termenv.ANSIBlack,
+			Properties: ResetBit,
+		},
+		SearchCurrentStyle: Format{
+			Bg:         termenv.ANSIYellow,
+			Fg:         termenv.ANSIBlack,
+			Properties: ResetBit,
+		},
 	}
 	v.Decoder = ansicode.NewDecoder(v)
 	v.reset()

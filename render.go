@@ -83,6 +83,12 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 		format(Format{Fg: fg, Bg: bg})
 	}
 
+	// Pre-fetch search highlights for this row (if any).
+	var searchHL []SearchHighlight
+	if vt.SearchHighlights != nil {
+		searchHL = vt.SearchHighlights[row]
+	}
+
 	for region := range vt.Format.Regions(row) {
 		line := vt.Content[row]
 
@@ -112,6 +118,16 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 				format(region.F)
 				fmt.Fprint(w, after)
 			}
+		} else if len(searchHL) > 0 {
+			// Render character-by-character, overriding format for highlighted cols.
+			for col := pos; col < pos+region.Size; col++ {
+				f := region.F
+				if hlF, ok := vt.searchHighlightAt(searchHL, col); ok {
+					f = hlF
+				}
+				format(f)
+				fmt.Fprint(w, string(line[col]))
+			}
 		} else {
 			format(region.F)
 			content := string(line[pos : pos+region.Size])
@@ -123,6 +139,20 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 
 	_, err := fmt.Fprint(w, resetSeq)
 	return err
+}
+
+// searchHighlightAt checks if col falls within any search highlight range
+// and returns the appropriate format override.
+func (vt *Terminal) searchHighlightAt(highlights []SearchHighlight, col int) (Format, bool) {
+	for _, hl := range highlights {
+		if col >= hl.Col && col < hl.End {
+			if hl.Current {
+				return vt.SearchCurrentStyle, true
+			}
+			return vt.SearchMatchStyle, true
+		}
+	}
+	return Format{}, false
 }
 
 const resetSeq = termenv.CSI + termenv.ResetSeq + "m"
