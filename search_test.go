@@ -142,6 +142,78 @@ func TestSearchNoMatches(t *testing.T) {
 	}
 }
 
+func TestSearchIncremental(t *testing.T) {
+	vt := NewTerminal(10, 40)
+	vt.Write([]byte("hello world\r\nfoo bar\r\n"))
+
+	// Initial search.
+	count := vt.Search("hello")
+	if count != 1 {
+		t.Fatalf("initial: expected 1 match, got %d", count)
+	}
+
+	// Same query, no changes — should be a no-op and return same count.
+	count = vt.Search("hello")
+	if count != 1 {
+		t.Fatalf("no-op: expected 1 match, got %d", count)
+	}
+
+	// Write new content with another match.
+	vt.Write([]byte("hello again\r\n"))
+	count = vt.Search("hello")
+	if count != 2 {
+		t.Fatalf("after append: expected 2 matches, got %d", count)
+	}
+
+	// Verify matches are in row order.
+	if vt.SearchMatches[0].Row != 0 || vt.SearchMatches[1].Row != 2 {
+		t.Fatalf("matches not in row order: %+v", vt.SearchMatches)
+	}
+}
+
+func TestSearchIncrementalModifiedRow(t *testing.T) {
+	vt := NewTerminal(10, 40)
+	vt.Write([]byte("aaa\r\nbbb\r\nccc\r\n"))
+
+	vt.Search("aaa")
+	if len(vt.SearchMatches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(vt.SearchMatches))
+	}
+
+	// Overwrite row 0 with different content.
+	vt.Write([]byte("\x1b[1;1H"))  // move to row 0, col 0
+	vt.Write([]byte("xxx"))        // overwrite "aaa" with "xxx"
+
+	count := vt.Search("aaa")
+	if count != 0 {
+		t.Fatalf("after overwrite: expected 0 matches, got %d", count)
+	}
+
+	// The old highlight should be gone.
+	if len(vt.SearchHighlights[0]) != 0 {
+		t.Fatalf("expected no highlights on row 0, got %d", len(vt.SearchHighlights[0]))
+	}
+}
+
+func TestSearchIncrementalNewQuery(t *testing.T) {
+	vt := NewTerminal(10, 40)
+	vt.Write([]byte("hello world\r\nfoo bar\r\n"))
+
+	vt.Search("hello")
+	if len(vt.SearchMatches) != 1 {
+		t.Fatalf("expected 1 match for hello, got %d", len(vt.SearchMatches))
+	}
+
+	// Different query — should do a full re-search.
+	count := vt.Search("foo")
+	if count != 1 {
+		t.Fatalf("expected 1 match for foo, got %d", count)
+	}
+	if vt.SearchMatches[0].Row != 1 {
+		t.Fatalf("expected match on row 1, got row %d", vt.SearchMatches[0].Row)
+	}
+}
+
 func TestSearchMultipleOnSameLine(t *testing.T) {
 	vt := NewTerminal(5, 40)
 	vt.Write([]byte("abcabcabc\r\n"))

@@ -74,6 +74,9 @@ type Terminal struct {
 	// SearchMatches stores ordered match locations from the last Search() call.
 	SearchMatches []SearchMatch
 
+	// searchCache holds state from the previous Search() for incremental updates.
+	searchCache *searchState
+
 	// for synchronizing e.g. writes and async resizing
 	mut sync.Mutex
 }
