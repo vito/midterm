@@ -391,6 +391,8 @@ func (v *Terminal) SetMode(mode ansicode.TerminalMode) {
 	switch mode {
 	case ansicode.TerminalModeCursorKeys:
 		forward = true
+	case ansicode.TerminalModeInsert:
+		v.insertMode = true
 	case ansicode.TerminalModeLineWrap:
 	case ansicode.TerminalModeBlinkingCursor:
 		epoch := time.Now()
@@ -627,6 +629,8 @@ func (v *Terminal) UnsetMode(mode ansicode.TerminalMode) {
 	switch mode {
 	case ansicode.TerminalModeCursorKeys:
 		forward = true
+	case ansicode.TerminalModeInsert:
+		v.insertMode = false
 	case ansicode.TerminalModeLineWrap:
 	case ansicode.TerminalModeBlinkingCursor:
 		v.CursorBlinkEpoch = nil
