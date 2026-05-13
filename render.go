@@ -18,7 +18,9 @@ func (vt *Terminal) RenderFgBg(w io.Writer, fg, bg termenv.Color) error {
 	defer vt.mut.Unlock()
 	for i := range vt.Height {
 		if i > 0 {
-			fmt.Fprintln(w)
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
 		}
 		err := vt.renderLine(w, i, fg, bg)
 		if err != nil {
@@ -64,9 +66,14 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 		return fmt.Errorf("line %d exceeds content height", row)
 	}
 
+	write := func(a ...any) error {
+		_, err := fmt.Fprint(w, a...)
+		return err
+	}
+
 	var pos int
 	lastFormat := EmptyFormat
-	format := func(f Format) {
+	format := func(f Format) error {
 		if lastFormat != f {
 			// TODO: this is probably a sane thing to do, but it makes picky tests
 			// fail; what if the last format set Italic? we need to reset it if the
@@ -74,13 +81,18 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 			// if lastFormat != EmptyFormat {
 			// 	fmt.Fprint(w, resetSeq)
 			// }
-			fmt.Fprint(w, f.RenderFgBg(fg, bg))
+			if err := write(f.RenderFgBg(fg, bg)); err != nil {
+				return err
+			}
 			lastFormat = f
 		}
+		return nil
 	}
 
 	if fg != nil || bg != nil {
-		format(Format{Fg: fg, Bg: bg})
+		if err := format(Format{Fg: fg, Bg: bg}); err != nil {
+			return err
+		}
 	}
 
 	// Pre-fetch search highlights for this row (if any).
@@ -105,18 +117,30 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 			after := string(line[vt.Cursor.X+1 : pos+region.Size])
 
 			if len(before) > 0 {
-				format(region.F)
-				fmt.Fprint(w, before)
+				if err := format(region.F); err != nil {
+					return err
+				}
+				if err := write(before); err != nil {
+					return err
+				}
 			}
 
 			invert := region.F
 			invert.SetReverse(!region.F.IsReverse())
-			format(invert)
-			fmt.Fprint(w, cursor)
+			if err := format(invert); err != nil {
+				return err
+			}
+			if err := write(cursor); err != nil {
+				return err
+			}
 
 			if len(after) > 0 {
-				format(region.F)
-				fmt.Fprint(w, after)
+				if err := format(region.F); err != nil {
+					return err
+				}
+				if err := write(after); err != nil {
+					return err
+				}
 			}
 		} else if len(searchHL) > 0 {
 			// Render character-by-character, overriding format for highlighted cols.
@@ -125,20 +149,27 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 				if hlF, ok := vt.searchHighlightAt(searchHL, col); ok {
 					f = hlF
 				}
-				format(f)
-				fmt.Fprint(w, string(line[col]))
+				if err := format(f); err != nil {
+					return err
+				}
+				if err := write(string(line[col])); err != nil {
+					return err
+				}
 			}
 		} else {
-			format(region.F)
+			if err := format(region.F); err != nil {
+				return err
+			}
 			content := string(line[pos : pos+region.Size])
-			fmt.Fprint(w, content)
+			if err := write(content); err != nil {
+				return err
+			}
 		}
 
 		pos += region.Size
 	}
 
-	_, err := fmt.Fprint(w, resetSeq)
-	return err
+	return write(resetSeq)
 }
 
 // searchHighlightAt checks if col falls within any search highlight range

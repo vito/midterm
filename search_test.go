@@ -5,9 +5,21 @@ import (
 	"testing"
 )
 
+func writeSearchInput(t *testing.T, vt *Terminal, s string) {
+	t.Helper()
+
+	n, err := vt.Write([]byte(s))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != len(s) {
+		t.Fatalf("short write: got %d, want %d", n, len(s))
+	}
+}
+
 func TestSearchBasic(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("hello world\r\nfoo bar hello\r\nbaz\r\n"))
+	writeSearchInput(t, vt, "hello world\r\nfoo bar hello\r\nbaz\r\n")
 
 	count := vt.Search("hello")
 	if count != 2 {
@@ -37,7 +49,7 @@ func TestSearchBasic(t *testing.T) {
 
 func TestSearchCaseInsensitive(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("Hello HELLO hElLo\r\n"))
+	writeSearchInput(t, vt, "Hello HELLO hElLo\r\n")
 
 	count := vt.Search("hello")
 	if count != 3 {
@@ -47,7 +59,7 @@ func TestSearchCaseInsensitive(t *testing.T) {
 
 func TestSearchSetCurrent(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("aaa\r\naaa\r\naaa\r\n"))
+	writeSearchInput(t, vt, "aaa\r\naaa\r\naaa\r\n")
 
 	vt.Search("aaa")
 
@@ -82,7 +94,7 @@ func TestSearchSetCurrent(t *testing.T) {
 
 func TestSearchClear(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("hello\r\n"))
+	writeSearchInput(t, vt, "hello\r\n")
 	vt.Search("hello")
 	if len(vt.SearchHighlights) == 0 {
 		t.Fatal("expected highlights after search")
@@ -95,7 +107,7 @@ func TestSearchClear(t *testing.T) {
 
 func TestSearchRenderHighlight(t *testing.T) {
 	vt := NewTerminal(5, 20)
-	vt.Write([]byte("hello world\r\n"))
+	writeSearchInput(t, vt, "hello world\r\n")
 
 	vt.Search("world")
 
@@ -111,7 +123,9 @@ func TestSearchRenderHighlight(t *testing.T) {
 	// Just check that the output differs from a non-search render.
 	vt.SearchClear()
 	var buf2 strings.Builder
-	vt.RenderLine(&buf2, 0)
+	if err := vt.RenderLine(&buf2, 0); err != nil {
+		t.Fatal(err)
+	}
 	plain := buf2.String()
 
 	if rendered == plain {
@@ -121,7 +135,7 @@ func TestSearchRenderHighlight(t *testing.T) {
 
 func TestSearchEmptyQuery(t *testing.T) {
 	vt := NewTerminal(5, 20)
-	vt.Write([]byte("hello\r\n"))
+	writeSearchInput(t, vt, "hello\r\n")
 
 	count := vt.Search("")
 	if count != 0 {
@@ -134,7 +148,7 @@ func TestSearchEmptyQuery(t *testing.T) {
 
 func TestSearchNoMatches(t *testing.T) {
 	vt := NewTerminal(5, 20)
-	vt.Write([]byte("hello world\r\n"))
+	writeSearchInput(t, vt, "hello world\r\n")
 
 	count := vt.Search("xyz")
 	if count != 0 {
@@ -144,7 +158,7 @@ func TestSearchNoMatches(t *testing.T) {
 
 func TestSearchIncremental(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("hello world\r\nfoo bar\r\n"))
+	writeSearchInput(t, vt, "hello world\r\nfoo bar\r\n")
 
 	// Initial search.
 	count := vt.Search("hello")
@@ -159,7 +173,7 @@ func TestSearchIncremental(t *testing.T) {
 	}
 
 	// Write new content with another match.
-	vt.Write([]byte("hello again\r\n"))
+	writeSearchInput(t, vt, "hello again\r\n")
 	count = vt.Search("hello")
 	if count != 2 {
 		t.Fatalf("after append: expected 2 matches, got %d", count)
@@ -173,7 +187,7 @@ func TestSearchIncremental(t *testing.T) {
 
 func TestSearchIncrementalModifiedRow(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("aaa\r\nbbb\r\nccc\r\n"))
+	writeSearchInput(t, vt, "aaa\r\nbbb\r\nccc\r\n")
 
 	vt.Search("aaa")
 	if len(vt.SearchMatches) != 1 {
@@ -181,8 +195,8 @@ func TestSearchIncrementalModifiedRow(t *testing.T) {
 	}
 
 	// Overwrite row 0 with different content.
-	vt.Write([]byte("\x1b[1;1H"))  // move to row 0, col 0
-	vt.Write([]byte("xxx"))        // overwrite "aaa" with "xxx"
+	writeSearchInput(t, vt, "\x1b[1;1H") // move to row 0, col 0
+	writeSearchInput(t, vt, "xxx")       // overwrite "aaa" with "xxx"
 
 	count := vt.Search("aaa")
 	if count != 0 {
@@ -197,7 +211,7 @@ func TestSearchIncrementalModifiedRow(t *testing.T) {
 
 func TestSearchIncrementalNewQuery(t *testing.T) {
 	vt := NewTerminal(10, 40)
-	vt.Write([]byte("hello world\r\nfoo bar\r\n"))
+	writeSearchInput(t, vt, "hello world\r\nfoo bar\r\n")
 
 	vt.Search("hello")
 	if len(vt.SearchMatches) != 1 {
@@ -216,7 +230,7 @@ func TestSearchIncrementalNewQuery(t *testing.T) {
 
 func TestSearchMultipleOnSameLine(t *testing.T) {
 	vt := NewTerminal(5, 40)
-	vt.Write([]byte("abcabcabc\r\n"))
+	writeSearchInput(t, vt, "abcabcabc\r\n")
 
 	count := vt.Search("abc")
 	if count != 3 {

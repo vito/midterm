@@ -80,12 +80,15 @@ func record(out string, cmd []string) error {
 
 	// Copy stdin to the pty and the pty to stdout.
 	// NOTE: The goroutine will keep reading until the next keystroke before returning.
-	go io.Copy(ptmx, os.Stdin)
+	go func() {
+		_, _ = io.Copy(ptmx, os.Stdin)
+	}()
 
 	raw, err := os.Create(out)
 	if err != nil {
 		return err
 	}
+	defer func() { _ = raw.Close() }() // Best effort.
 
 	go func() {
 		for {
@@ -94,7 +97,10 @@ func record(out string, cmd []string) error {
 			if err != nil {
 				break
 			}
-			raw.Write(buf[:n])
+			if _, err := raw.Write(buf[:n]); err != nil {
+				prog.Send(exitMsg(err))
+				break
+			}
 			prog.Send(ptyMsg(buf[:n]))
 		}
 
@@ -124,13 +130,21 @@ func replay(out string) error {
 
 	for _, f := range fields {
 		before := new(bytes.Buffer)
-		renderVt(before, vt)
+		if err := renderVt(before, vt); err != nil {
+			return err
+		}
 		prev := vt.Cursor
-		vt.Write(f)
+		if _, err := vt.Write(f); err != nil {
+			return err
+		}
 		after := new(bytes.Buffer)
-		renderVt(after, vt)
+		if err := renderVt(after, vt); err != nil {
+			return err
+		}
 		fmt.Printf("------------------------------------------------------------------------------------------- (%d,%d) %q\n", prev.X, prev.Y, f)
-		renderVt(os.Stdout, vt)
+		if err := renderVt(os.Stdout, vt); err != nil {
+			return err
+		}
 		// if regexp.MustCompile("\x1b" + `\[.*[TS]`).Match(after.Bytes()) {
 		// 	fmt.Print(before.String())
 		// 	fmt.Printf("Wrote %q\n", string(f))
@@ -138,7 +152,9 @@ func replay(out string) error {
 		// }
 	}
 
-	renderVt(os.Stdout, vt)
+	if err := renderVt(os.Stdout, vt); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -152,18 +168,25 @@ func replayLogs(out string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // Best effort.
 
 	scan := bufio.NewScanner(f)
 	lines := 0
 	for scan.Scan() {
 		lines++
 		// fmt.Fprintf(os.Stderr, "%d WRITING: %q\n", lines, scan.Text())
-		vt.Write(scan.Bytes())
+		if _, err := vt.Write(scan.Bytes()); err != nil {
+			return err
+		}
 		vt.LineFeed()
 	}
+	if err := scan.Err(); err != nil {
+		return err
+	}
 
-	renderVt(os.Stdout, vt)
+	if err := renderVt(os.Stdout, vt); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -185,24 +208,33 @@ func (m vtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case exitMsg:
 		return m, tea.Quit
 	case ptyMsg:
-		m.vt.Write(x)
+		if _, err := m.vt.Write(x); err != nil {
+			return m, func() tea.Msg { return exitMsg(err) }
+		}
 	}
 	return m, nil
 }
 
 func (m vtModel) View() string {
 	buf := new(bytes.Buffer)
-	renderVt(buf, m.vt)
+	if err := renderVt(buf, m.vt); err != nil {
+		return err.Error()
+	}
 	return buf.String()
 }
 
-func renderVt(w io.Writer, vt *midterm.Terminal) {
+func renderVt(w io.Writer, vt *midterm.Terminal) error {
 	for i := 0; i < vt.Height; i++ {
 		if i > 0 {
-			fmt.Fprintln(w)
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
 		}
-		vt.RenderLine(w, i)
+		if err := vt.RenderLine(w, i); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func splitBefore(data []byte, delim []byte) [][]byte {

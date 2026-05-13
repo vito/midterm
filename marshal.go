@@ -33,7 +33,7 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 			buffer.WriteString(termenv.CSI + termenv.ExitAltScreenSeq)
 		}
 	}
-	bytez, err = vt.Screen.marshalBinary()
+	bytez, err = vt.marshalBinary()
 	if err != nil {
 		return
 	}
@@ -47,13 +47,13 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 	}
 
 	if vt.wrap { // Hack to force wrap flag into correct state
-		row := vt.Screen.Cursor.Y
-		col := vt.Screen.Cursor.X
+		row := vt.Cursor.Y
+		col := vt.Cursor.X
 
 		_, _ = fmt.Fprintf(&buffer, termenv.CSI+termenv.CursorPositionSeq, row+1, col+1)
 
 		var region *Region
-		for region = vt.Screen.Format.Rows[row]; region.Next != nil; region = region.Next {
+		for region = vt.Format.Rows[row]; region.Next != nil; region = region.Next {
 			//Seek to the last region since we're always targeting the end of the line
 		}
 
@@ -61,13 +61,16 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 		if err != nil {
 			return
 		}
-		content := vt.Screen.Content[row][col]
+		if _, err = buffer.Write(bytez); err != nil {
+			return
+		}
+		content := vt.Content[row][col]
 		_, err = buffer.WriteRune(content)
 		if err != nil {
 			return
 		}
 
-		bytez, err = vt.Screen.Cursor.F.MarshalBinary()
+		bytez, err = vt.Cursor.F.MarshalBinary()
 		if err != nil {
 			return
 		}

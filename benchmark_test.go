@@ -20,7 +20,9 @@ func BenchmarkGolden(t *testing.B) {
 		t.Run(ent.Name(), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				vt := midterm.NewTerminal(24, 120)
-				vt.Write(rawOutput)
+				if _, err := vt.Write(rawOutput); err != nil {
+					b.Fatal(err)
+				}
 			}
 		})
 	}

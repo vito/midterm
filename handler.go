@@ -110,7 +110,7 @@ func (v *Terminal) ConfigureCharset(index ansicode.CharsetIndex, charset ansicod
 	case ansicode.CharsetLineDrawing:
 		renderedCharset = '0'
 	}
-	fmt.Fprintf(v.ForwardRequests, "\x1b%c%c", renderedIndex, renderedCharset)
+	_, _ = fmt.Fprintf(v.ForwardRequests, "\x1b%c%c", renderedIndex, renderedCharset)
 }
 
 // Decaln runs the DECALN command.
@@ -139,9 +139,9 @@ func (v *Terminal) DeviceStatus(n int) {
 	}
 	switch n {
 	case 5:
-		fmt.Fprint(v.ForwardResponses, termenv.CSI+"0n")
+		_, _ = fmt.Fprint(v.ForwardResponses, termenv.CSI+"0n")
 	case 6:
-		fmt.Fprintf(v.ForwardResponses, "%s%d;%dR", termenv.CSI, v.Cursor.Y+1, v.Cursor.X+1)
+		_, _ = fmt.Fprintf(v.ForwardResponses, "%s%d;%dR", termenv.CSI, v.Cursor.Y+1, v.Cursor.X+1)
 	default:
 		dbg.Println("UNKNOWN DEVICE STATUS QUERY", n)
 	}
@@ -194,7 +194,7 @@ func (v *Terminal) IdentifyTerminal(b byte) {
 		return
 	}
 	dbg.Println("IdentifyTerminal: RESPONDING VT102")
-	fmt.Fprint(v.ForwardResponses, termenv.CSI+"?62;22c") // VT220 + ANSI
+	_, _ = fmt.Fprint(v.ForwardResponses, termenv.CSI+"?62;22c") // VT220 + ANSI
 }
 
 // Input inputs a rune to be displayed.
@@ -300,7 +300,7 @@ func (v *Terminal) ReportKeyboardMode() {
 		return
 	}
 	dbg.Println("ReportKeyboardMode (forwarding)")
-	fmt.Fprint(v.ForwardResponses, termenv.CSI+"?0u")
+	_, _ = fmt.Fprint(v.ForwardResponses, termenv.CSI+"?0u")
 }
 
 // ReportModifyOtherKeys reports the modify other keys mode. (XTERM)
@@ -426,7 +426,7 @@ func (v *Terminal) SetMode(mode ansicode.TerminalMode) {
 		dbg.Println("SET UNKNOWN MODE", mode)
 	}
 	if forward && v.ForwardRequests != nil {
-		fmt.Fprintf(v.ForwardRequests, "\x1b[%dh", mode)
+		_, _ = fmt.Fprintf(v.ForwardRequests, "\x1b[%dh", mode)
 	}
 }
 
@@ -434,7 +434,7 @@ func (v *Terminal) SetMode(mode ansicode.TerminalMode) {
 func (v *Terminal) SetModifyOtherKeys(modify ansicode.ModifyOtherKeys) {
 	dbg.Println("SetModifyOtherKeys", modify)
 	if v.ForwardRequests != nil {
-		fmt.Fprintf(v.ForwardRequests, "%s%dm", termenv.CSI, modify)
+		_, _ = fmt.Fprintf(v.ForwardRequests, "%s%dm", termenv.CSI, modify)
 	}
 }
 
@@ -659,6 +659,6 @@ func (v *Terminal) UnsetMode(mode ansicode.TerminalMode) {
 		dbg.Println("UNSET UNKNOWN MODE", mode)
 	}
 	if forward && v.ForwardRequests != nil {
-		fmt.Fprintf(v.ForwardRequests, "\x1b[?%dl", mode)
+		_, _ = fmt.Fprintf(v.ForwardRequests, "\x1b[?%dl", mode)
 	}
 }

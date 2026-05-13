@@ -15,6 +15,20 @@ import (
 	"github.com/vito/midterm"
 )
 
+func mustFprintln(t testing.TB, w io.Writer, a ...any) {
+	t.Helper()
+
+	_, err := fmt.Fprintln(w, a...)
+	require.NoError(t, err)
+}
+
+func mustFprintf(t testing.TB, w io.Writer, format string, a ...any) {
+	t.Helper()
+
+	_, err := fmt.Fprintf(w, format, a...)
+	require.NoError(t, err)
+}
+
 func TestGolden(t *testing.T) {
 	ents, err := os.ReadDir(filepath.Join("testdata", "vhs"))
 	require.NoError(t, err)
@@ -31,9 +45,9 @@ func TestAutoResize(t *testing.T) {
 		vt := midterm.NewTerminal(0, 5)
 		vt.AutoResizeX = true
 		vt.AutoResizeY = true
-		fmt.Fprintln(vt, "hey")
-		fmt.Fprintln(vt, "yo")
-		fmt.Fprintln(vt, "im a grower")
+		mustFprintln(t, vt, "hey")
+		mustFprintln(t, vt, "yo")
+		mustFprintln(t, vt, "im a grower")
 
 		buf := new(bytes.Buffer)
 		err := vt.Render(buf)
@@ -43,9 +57,9 @@ func TestAutoResize(t *testing.T) {
 
 	t.Run("without an initial width", func(t *testing.T) {
 		vt := midterm.NewAutoResizingTerminal()
-		fmt.Fprintln(vt, "hey")
-		fmt.Fprintln(vt, "yo")
-		fmt.Fprintln(vt, "im a grower")
+		mustFprintln(t, vt, "hey")
+		mustFprintln(t, vt, "yo")
+		mustFprintln(t, vt, "im a grower")
 
 		buf := new(bytes.Buffer)
 		err := vt.Render(buf)
@@ -175,7 +189,7 @@ func TestResizeSmallerWidth(t *testing.T) {
 	vt := midterm.NewTerminal(24, 200)
 
 	for i := range 24 {
-		fmt.Fprintf(vt, "Line %d with some content\n", i)
+		mustFprintf(t, vt, "Line %d with some content\n", i)
 	}
 
 	// Resize to a much smaller width - this should not panic
@@ -190,7 +204,7 @@ func TestResizeGrowingHeightThenShrinkWidth(t *testing.T) {
 	vt := midterm.NewTerminal(20, 200)
 
 	for i := range 20 {
-		fmt.Fprintf(vt, "Line %d with content\n", i)
+		mustFprintf(t, vt, "Line %d with content\n", i)
 	}
 
 	// Resize: grow height, shrink width

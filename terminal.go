@@ -142,7 +142,7 @@ func NewTerminal(rows, cols int) *Terminal {
 // Write writes the input sequence to the terminal.
 func (v *Terminal) Write(p []byte) (int, error) {
 	if trace != nil {
-		trace.Write(p)
+		_, _ = trace.Write(p)
 	}
 	return v.Decoder.Write(p)
 }
@@ -272,13 +272,6 @@ func (v *Terminal) advance() {
 	} else {
 		v.moveRel(0, 1)
 		v.changed(v.Cursor.Y, true)
-	}
-}
-
-func (v *Terminal) resizeY(h int) {
-	v.Screen.resizeY(h)
-	if v.Alt != nil {
-		v.Alt.resizeY(h)
 	}
 }
 
@@ -583,31 +576,10 @@ func (v *Terminal) scrollRegion() (int, int) {
 	}
 }
 
-func (v *Terminal) scrollOne() {
-	v.scrollUpN(1)
-	v.Cursor.Y = v.Height - 1
-}
-
 func (v *Terminal) home(y, x int) {
 	v.wrap = false // cursor movement always resets the wrap state.
 	v.moveAbs(y, x)
 }
-
-// eraseDirection is the logical direction in which an erase command happens,
-// from the cursor. For both erase commands, forward is 0, backward is 1,
-// and everything is 2.
-type eraseDirection int
-
-const (
-	// From the cursor to the end, inclusive.
-	eraseForward eraseDirection = iota
-
-	// From the beginning to the cursor, inclusive.
-	eraseBack
-
-	// Everything.
-	eraseAll
-)
 
 func (v *Terminal) eraseRegion(y1, x1, y2, x2 int) {
 	// Erasing lines and columns clears the wrap state.
