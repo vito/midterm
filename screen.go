@@ -91,14 +91,10 @@ func (v *Screen) resizeY(h int) {
 		v.MaxY = h - 1
 	}
 
-	if h > v.Height {
-		n := h - v.Height
-		for row := 0; row < n; row++ {
-			for col := 0; col < v.Width; col++ {
-				v.clear(v.Height+row, col, EmptyFormat)
-			}
-		}
-	} else if h < v.Height {
+	switch {
+	case h > v.Height:
+		v.ensureHeight(h - 1)
+	case h < v.Height:
 		v.Content = v.Content[:h]
 		v.Changes = v.Changes[:h]
 	}

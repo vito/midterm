@@ -216,6 +216,53 @@ func TestResizeGrowingHeightThenShrinkWidth(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestResizeGrowingHeightDoesNotBloatCanvas pins the size invariants
+// after a Resize() that grows the height. Before the fix to resizeY's
+// grow path, the inner clear() call mutated v.Height while the outer
+// loop was still using it as the offset for the next row, so each
+// new row compounded the height by row+1 per column. Concretely,
+// NewTerminal(24, 40) + Resize(29, 50) ended with Height=624 and
+// len(Content)=1219 instead of 29 and 29. Embedders (terminal
+// multiplexers, agent dashboards) saw the side-effect as their host
+// renderer clipping content off-screen.
+func TestResizeGrowingHeightDoesNotBloatCanvas(t *testing.T) {
+	cases := []struct {
+		startRows, startCols int
+		targetRows           int
+		targetCols           int
+	}{
+		// Original reproduction: small initial size, modest grow, both axes.
+		{24, 40, 29, 50},
+		// Grow only height.
+		{20, 80, 50, 80},
+		// Grow only width (control — was never buggy, included for completeness).
+		{30, 60, 30, 120},
+		// Grow then grow again from a state that previously couldn't survive
+		// a single Resize without bloat.
+		{24, 40, 100, 100},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("from_%dx%d_to_%dx%d", tc.startRows, tc.startCols, tc.targetRows, tc.targetCols), func(t *testing.T) {
+			vt := midterm.NewTerminal(tc.startRows, tc.startCols)
+			vt.Resize(tc.targetRows, tc.targetCols)
+
+			require.Equal(t, tc.targetRows, vt.Height, "vt.Height should equal target rows")
+			require.Equal(t, tc.targetCols, vt.Width, "vt.Width should equal target cols")
+			require.Equal(t, tc.targetRows, len(vt.Content), "len(vt.Content) should equal target rows")
+			require.Equal(t, tc.targetRows, len(vt.Changes), "len(vt.Changes) should equal target rows")
+			for i, row := range vt.Content {
+				require.Equal(t, tc.targetCols, len(row), "Content row %d width should equal target cols", i)
+			}
+
+			// Render must produce exactly target-rows lines so embedders
+			// don't see phantom rows past the visible area.
+			buf := new(bytes.Buffer)
+			require.NoError(t, vt.Render(buf))
+			require.Equal(t, tc.targetRows, strings.Count(buf.String(), "\n")+1, "rendered line count should equal target rows")
+		})
+	}
+}
+
 func TestInsertModePreservesShiftedContentAcrossLines(t *testing.T) {
 	term := midterm.NewTerminal(24, 80)
 	term.Raw = true
