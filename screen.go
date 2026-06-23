@@ -93,17 +93,6 @@ func (v *Screen) resizeY(h int) {
 
 	switch {
 	case h > v.Height:
-		// Grow: ensureHeight already appends empty rows, paints
-		// EmptyFormat on each new cell, and ticks Changes — exactly
-		// the per-row initialization this branch used to do
-		// cell-by-cell via clear(). The previous loop read v.Height
-		// fresh on every iteration as the row offset, and clear()'s
-		// internal ensureHeight call mutated v.Height between
-		// iterations, so each new row compounded the offset by
-		// row+1 per column (Height grew from 24 to 624 on a
-		// 24×40 → 29×50 resize). Letting ensureHeight do the work
-		// directly keeps the canvas, Content, Changes, and Height
-		// in lockstep.
 		v.ensureHeight(h - 1)
 	case h < v.Height:
 		v.Content = v.Content[:h]
