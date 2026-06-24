@@ -306,6 +306,9 @@ func (canvas *Canvas) ResizeY(h int) {
 }
 
 func (canvas *Canvas) ResizeX(w int) {
+	// Track the new width; row (re)inits seed their region size from it.
+	canvas.Width = w
+
 	// Handle width adjustment
 	for y := 0; y < len(canvas.Rows); y++ {
 		row := canvas.Rows[y]
