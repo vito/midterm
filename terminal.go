@@ -219,8 +219,11 @@ func (v *Terminal) ResizeY(rows int) {
 
 type OnScrollbackFunc func(line Line)
 
-// OnScrollback sets a hook that is called every time a line is about to be
-// pushed out of the visible screen region.
+// OnScrollback sets a hook called for each line pushed into scrollback, i.e.
+// scrolled off the top of the main screen. It does not fire on the alternate
+// screen (which has no scrollback) or for scrolls confined to a bounded scroll
+// region. The hook runs synchronously while input is being processed and must
+// not re-enter the terminal (e.g. Write, Resize).
 func (v *Terminal) OnScrollback(f OnScrollbackFunc) {
 	v.mut.Lock()
 	v.onScrollback = f
@@ -552,13 +555,25 @@ func (v *Terminal) scrollDownN(n int) {
 }
 
 func (v *Terminal) scrollUpN(n int) {
-	if v.onScrollback != nil {
-		for i := 0; i < n; i++ {
-			// v.onScrollback(Line{v.Content[i], v.Format[i]})
+	start, end := v.scrollRegion()
+	// only a full-screen scroll of the main screen produces scrollback
+	var evicted []Line
+	if v.onScrollback != nil && !v.IsAlt && start == 0 && end == v.Height-1 {
+		for i := 0; i < n && i < len(v.Content); i++ {
+			// snapshot before scrollUp recycles the row
+			content := append([]rune(nil), v.Content[i]...)
+			format := make([]Format, len(content))
+			col := 0
+			for r := range v.Format.Regions(i) {
+				for j := 0; j < r.Size && col < len(format); j++ {
+					format[col] = r.F
+					col++
+				}
+			}
+			evicted = append(evicted, Line{Content: content, Format: format})
 		}
 	}
 	// v.wrap = false // scroll up does NOT reset the wrap state.
-	start, end := v.scrollRegion()
 	scrollUp(v.Content, n, start, end, ' ')
 	scrollUpShallow(v.Format.Rows, n, start, end, func() *Region {
 		return &Region{Size: v.Width, F: v.Cursor.F}
@@ -566,6 +581,10 @@ func (v *Terminal) scrollUpN(n int) {
 	scrollUpShallow(v.Changes, n, start, end, func() uint64 {
 		return 1
 	})
+	// deliver from the stable post-scroll state
+	for _, line := range evicted {
+		v.onScrollback(line)
+	}
 }
 
 func (v *Terminal) scrollRegion() (int, int) {
