@@ -263,6 +263,34 @@ func TestResizeGrowingHeightDoesNotBloatCanvas(t *testing.T) {
 	}
 }
 
+// TestResizeNarrowThenRedrawDoesNotPanic guards Canvas.ResizeX against
+// leaving canvas.Width stale after a width shrink. canvas.Width is the
+// seed size for every later row (re)init — Paint/Insert bootstrap,
+// ResizeY grow, and ClearRow (ESC[2J). If it stays at the old, wider
+// value, the next row re-init builds a format region wider than the
+// now-narrower content row, and renderLine's line[pos:pos+region.Size]
+// slice overruns it (panic: slice bounds out of range).
+func TestResizeNarrowThenRedrawDoesNotPanic(t *testing.T) {
+	// Wide initial grid: canvas.Width is seeded at 201.
+	vt := midterm.NewTerminal(24, 201)
+
+	// Shrink to a narrower width, as a window resize would.
+	vt.Resize(24, 95)
+
+	// Full-screen redraw after the resize: clear screen (ESC[2J re-inits
+	// each row at canvas.Width), home, then paint.
+	mustFprintf(t, vt, "\x1b[2J\x1b[Hhello")
+
+	buf := new(bytes.Buffer)
+	require.NoError(t, vt.Render(buf))
+
+	// Growing taller after the shrink also appends rows at canvas.Width;
+	// clear and repaint, then re-render the whole (now taller) grid.
+	vt.Resize(40, 95)
+	mustFprintf(t, vt, "\x1b[2J\x1b[40;1Hbottom")
+	require.NoError(t, vt.Render(buf))
+}
+
 func TestInsertModePreservesShiftedContentAcrossLines(t *testing.T) {
 	term := midterm.NewTerminal(24, 80)
 	term.Raw = true
