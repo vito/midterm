@@ -291,6 +291,70 @@ func TestResizeNarrowThenRedrawDoesNotPanic(t *testing.T) {
 	require.NoError(t, vt.Render(buf))
 }
 
+// TestOnScrollback verifies the OnScrollback hook fires for each line
+// pushed off the top of the main screen - in order, with its content and
+// formatting - and stays silent on the alt screen, which has no
+// scrollback.
+func TestOnScrollback(t *testing.T) {
+	t.Run("fires for lines scrolled off the main screen", func(t *testing.T) {
+		vt := midterm.NewTerminal(3, 20)
+
+		var got []string
+		vt.OnScrollback(func(line midterm.Line) {
+			got = append(got, strings.TrimRight(string(line.Content), " "))
+		})
+
+		// Five lines into a three-row screen: the first two fall into history.
+		mustFprintf(t, vt, "line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5")
+
+		require.Equal(t, []string{"line 1", "line 2"}, got)
+	})
+
+	t.Run("preserves the evicted line's formatting", func(t *testing.T) {
+		vt := midterm.NewTerminal(2, 10)
+
+		var got []midterm.Line
+		vt.OnScrollback(func(line midterm.Line) {
+			got = append(got, line)
+		})
+
+		// Bold the first line, then push it off the two-row screen.
+		mustFprintf(t, vt, "\x1b[1mAB\x1b[0m\r\nplain\r\nx")
+
+		require.Len(t, got, 1)
+		require.Len(t, got[0].Format, len(got[0].Content))
+		require.True(t, got[0].Format[0].IsBold())
+		require.True(t, got[0].Format[1].IsBold())
+	})
+
+	t.Run("stays silent on the alt screen", func(t *testing.T) {
+		vt := midterm.NewTerminal(3, 20)
+
+		var calls int
+		vt.OnScrollback(func(midterm.Line) { calls++ })
+
+		// Enter the alt screen (DECSET 1049), then overflow it.
+		mustFprintf(t, vt, "\x1b[?1049h")
+		require.True(t, vt.IsAlt)
+		mustFprintf(t, vt, "line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5")
+
+		require.Zero(t, calls)
+	})
+
+	t.Run("stays silent for a bounded scroll region", func(t *testing.T) {
+		vt := midterm.NewTerminal(5, 20)
+
+		var calls int
+		vt.OnScrollback(func(midterm.Line) { calls++ })
+
+		// A scroll region smaller than the screen isn't history-producing.
+		vt.SetScrollingRegion(2, 4)
+		vt.ScrollUp(3)
+
+		require.Zero(t, calls)
+	})
+}
+
 func TestInsertModePreservesShiftedContentAcrossLines(t *testing.T) {
 	term := midterm.NewTerminal(24, 80)
 	term.Raw = true
