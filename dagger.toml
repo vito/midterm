@@ -1,0 +1,19 @@
+# Dagger workspace configuration
+# Install modules with: dagger mod install <module>
+# Example:
+#   dagger mod install github.com/dagger/dagger/modules/wolfi
+
+[modules.go]
+source = "github.com/dagger/go"
+# Go version used for the default Go base image.
+# settings.version = ""
+# Base image used for Go test, generate, and helper containers.
+# settings.base = "alpine:latest"
+# Extra workspace-root include patterns mounted for each module's Go commands.
+# settings.includeExtraFiles = [""]
+# Module roots to lint. A bare pattern selects, a "!"-prefixed pattern
+# settings.lint = [""]
+# Module roots to test. Same selection rules as `lint`.
+# settings.test = [""]
+# Module roots to run go generate in. Same selection rules as `lint`.
+# settings.generate = [""]
