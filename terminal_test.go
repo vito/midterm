@@ -355,6 +355,39 @@ func TestOnScrollback(t *testing.T) {
 	})
 }
 
+// TestRenderResetsClearedAttributes verifies renderLine resets SGR state
+// between regions only when the next region drops an attribute the previous
+// one set - so attributes don't bleed forward, without resetting needlessly.
+func TestRenderResetsClearedAttributes(t *testing.T) {
+	const reset = "\x1b[0m"
+
+	// between returns the bytes emitted between the "AB" and "CD" runs.
+	between := func(out string) string {
+		return out[strings.Index(out, "AB")+2 : strings.Index(out, "CD")]
+	}
+
+	t.Run("resets when a region drops an attribute", func(t *testing.T) {
+		vt := midterm.NewTerminal(1, 4)
+		// reverse+red "AB", then plain red "CD" (SGR 27 cancels reverse) -
+		// reverse must not bleed into CD.
+		mustFprintf(t, vt, "\x1b[7;31mAB\x1b[27mCD")
+
+		var buf bytes.Buffer
+		require.NoError(t, vt.Render(&buf))
+		require.Contains(t, between(buf.String()), reset)
+	})
+
+	t.Run("does not reset when a region only adds attributes", func(t *testing.T) {
+		vt := midterm.NewTerminal(1, 4)
+		// red "AB", then reverse+red "CD" - red carries over, no reset needed.
+		mustFprintf(t, vt, "\x1b[31mAB\x1b[7mCD")
+
+		var buf bytes.Buffer
+		require.NoError(t, vt.Render(&buf))
+		require.NotContains(t, between(buf.String()), reset)
+	})
+}
+
 func TestInsertModePreservesShiftedContentAcrossLines(t *testing.T) {
 	term := midterm.NewTerminal(24, 80)
 	term.Raw = true

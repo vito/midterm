@@ -75,12 +75,13 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 	lastFormat := EmptyFormat
 	format := func(f Format) error {
 		if lastFormat != f {
-			// TODO: this is probably a sane thing to do, but it makes picky tests
-			// fail; what if the last format set Italic? we need to reset it if the
-			// new format doesn't also set it.
-			// if lastFormat != EmptyFormat {
-			// 	fmt.Fprint(w, resetSeq)
-			// }
+			// RenderFgBg emits only "on" sequences; if f drops an attribute or
+			// color the previous format set, reset first so it doesn't bleed in.
+			if leaksInto(lastFormat, f, fg, bg) {
+				if err := write(resetSeq); err != nil {
+					return err
+				}
+			}
 			if err := write(f.RenderFgBg(fg, bg)); err != nil {
 				return err
 			}
@@ -170,6 +171,32 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 	}
 
 	return write(resetSeq)
+}
+
+// leaksInto reports whether emitting f right after prev needs an explicit
+// reset first: RenderFgBg emits only "on" sequences, so any attribute or color
+// prev set that f drops would otherwise bleed through. fg and bg are
+// RenderFgBg's fallback colors for unset sides.
+func leaksInto(prev, f Format, fg, bg termenv.Color) bool {
+	// the empty and reset formats already render from a clean slate.
+	if f.IsReset() || f == (Format{}) {
+		return false
+	}
+	const attrs = BoldBit | FaintBit | ItalicBit | UnderlineBit | BlinkBit | ReverseBit | ConcealBit
+	if (prev.Properties&attrs)&^f.Properties != 0 {
+		return true
+	}
+	if orColor(prev.Fg, fg) != nil && orColor(f.Fg, fg) == nil {
+		return true
+	}
+	return orColor(prev.Bg, bg) != nil && orColor(f.Bg, bg) == nil
+}
+
+func orColor(c, fallback termenv.Color) termenv.Color {
+	if c != nil {
+		return c
+	}
+	return fallback
 }
 
 // searchHighlightAt checks if col falls within any search highlight range
