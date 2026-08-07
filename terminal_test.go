@@ -29,6 +29,20 @@ func mustFprintf(t testing.TB, w io.Writer, format string, a ...any) {
 	require.NoError(t, err)
 }
 
+func formatWidth(vt *midterm.Terminal, row int) int {
+	return len(formatCells(vt, row))
+}
+
+func formatCells(vt *midterm.Terminal, row int) []midterm.Format {
+	var cells []midterm.Format
+	for region := range vt.Format.Regions(row) {
+		for range region.Size {
+			cells = append(cells, region.F)
+		}
+	}
+	return cells
+}
+
 func TestGolden(t *testing.T) {
 	ents, err := os.ReadDir(filepath.Join("testdata", "vhs"))
 	require.NoError(t, err)
@@ -289,6 +303,92 @@ func TestResizeNarrowThenRedrawDoesNotPanic(t *testing.T) {
 	vt.Resize(40, 95)
 	mustFprintf(t, vt, "\x1b[2J\x1b[40;1Hbottom")
 	require.NoError(t, vt.Render(buf))
+}
+
+func TestInsertCharactersKeepFormatWithinScreen(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		insert string
+		want   string
+	}{
+		{name: "ICH", insert: "\x1b[3@", want: "abc   de"},
+		{name: "insert mode", insert: "\x1b[4habc\x1b[4l", want: "abcabcde"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			vt := midterm.NewTerminal(2, 8)
+			mustFprintf(t, vt, "\x1b[2;1Habcdefgh\x1b[2;4H%s\x1b[2;1H\n", tc.insert)
+
+			require.Equal(t, tc.want, string(vt.Content[0]))
+			require.Equal(t, len(vt.Content[0]), formatWidth(vt, 0))
+
+			var buf bytes.Buffer
+			require.NoError(t, vt.RenderLine(&buf, 0))
+		})
+	}
+}
+
+func TestInsertCharactersResetPendingWrap(t *testing.T) {
+	vt := midterm.NewTerminal(2, 4)
+	mustFprintf(t, vt, "abcd\x1b[@X")
+
+	require.Equal(t, "abcX", string(vt.Content[0]))
+	require.Equal(t, "    ", string(vt.Content[1]))
+}
+
+func TestDeleteCharactersKeepContentAndFormatWithinScreen(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		delete string
+		want   string
+	}{
+		{name: "oversized", delete: "\x1b[1;4H\x1b[100P", want: "abc     "},
+		{name: "past right margin", delete: "\x1b[1;7H\x1b[5P", want: "abcdef  "},
+		{name: "within row", delete: "\x1b[1;4H\x1b[2P", want: "abcfgh  "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			vt := midterm.NewTerminal(1, 8)
+			mustFprintf(t, vt, "abcdefgh%s", tc.delete)
+
+			require.Equal(t, tc.want, string(vt.Content[0]))
+			require.Equal(t, len(vt.Content[0]), formatWidth(vt, 0))
+
+			var buf bytes.Buffer
+			require.NoError(t, vt.RenderLine(&buf, 0))
+		})
+	}
+
+	t.Run("preserves shifted formatting", func(t *testing.T) {
+		vt := midterm.NewTerminal(1, 8)
+		mustFprintf(t, vt, "\x1b[1mabcde\x1b[22mfgh\x1b[1;4H\x1b[2P")
+
+		require.Equal(t, "abcfgh  ", string(vt.Content[0]))
+		cells := formatCells(vt, 0)
+		require.Len(t, cells, len(vt.Content[0]))
+		for col := range 3 {
+			require.Truef(t, cells[col].IsBold(), "column %d should remain bold", col)
+		}
+		for col := 3; col < len(cells); col++ {
+			require.Falsef(t, cells[col].IsBold(), "column %d should remain plain", col)
+		}
+	})
+}
+
+func TestEraseCharactersClipsAtRightMargin(t *testing.T) {
+	vt := midterm.NewTerminal(1, 8)
+	mustFprintf(t, vt, "abcdefgh\x1b[1;7H\x1b[5X")
+
+	require.Equal(t, "abcdef  ", string(vt.Content[0]))
+	require.Equal(t, len(vt.Content[0]), formatWidth(vt, 0))
+
+	var buf bytes.Buffer
+	require.NoError(t, vt.RenderLine(&buf, 0))
+}
+
+func TestEraseCharactersOutsideScreenDoesNotGrowIt(t *testing.T) {
+	vt := midterm.NewTerminal(1, 8)
+	mustFprintf(t, vt, "\x1b[99d\x1b[X")
+
+	require.Equal(t, 1, vt.Height)
 }
 
 // TestOnScrollback verifies the OnScrollback hook fires for each line

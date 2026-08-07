@@ -238,52 +238,51 @@ func (canvas *Canvas) Insert(row, col int, f Format, n int) {
 	}
 }
 
-// TODO: untested
 func (canvas *Canvas) Delete(row, col, n int) {
-	if row >= len(canvas.Rows) {
-		return // Row doesn't exist, nothing to delete
+	if row < 0 || row >= len(canvas.Rows) || col < 0 || n <= 0 {
+		return
 	}
 
-	var pos int
-	var prev *Region
-	for region := range canvas.Regions(row) {
-		end := pos + region.Size
-
-		if end > col {
-			rem := end - col
-
-			if rem > 0 {
-				n -= (region.Size - rem)
-				region.Size = rem
-				region = region.Next
-			}
-
-			// Delete the specified number of characters
-			for n > 0 && region != nil {
-				if n >= region.Size {
-					// Fully delete this region
-					n -= region.Size
-					if prev != nil {
-						prev.Next = region.Next
-					} else if region.Next != nil {
-						// Head of the row being deleted
-						canvas.Rows[row] = region.Next
-					} else {
-						// Just leave an empty region behind
-						region.Size = 0
-					}
-					region = region.Next
-				} else {
-					// Partially delete from this region
-					region.Size -= n
-					n = 0
-				}
-			}
-			return
+	position := 0
+	var previous *Region
+	link := &canvas.Rows[row]
+	for *link != nil {
+		region := *link
+		end := position + region.Size
+		if end <= col {
+			position = end
+			previous = region
+			link = &region.Next
+			continue
 		}
 
-		pos = end
-		prev = region
+		if offset := col - position; offset > 0 {
+			tail := &Region{F: region.F, Size: region.Size - offset, Next: region.Next}
+			region.Size = offset
+			region.Next = tail
+			previous = region
+			link = &region.Next
+		}
+
+		for n > 0 && *link != nil {
+			region = *link
+			if n < region.Size {
+				region.Size -= n
+				n = 0
+			} else {
+				n -= region.Size
+				*link = region.Next
+			}
+		}
+
+		if previous != nil && previous.Next != nil && previous.F == previous.Next.F {
+			previous.Size += previous.Next.Size
+			previous.Next = previous.Next.Next
+		}
+		if canvas.Rows[row] == nil {
+			canvas.Rows[row] = &Region{}
+		}
+		return
 	}
 }
 
@@ -311,38 +310,35 @@ func (canvas *Canvas) ResizeX(w int) {
 
 	// Handle width adjustment
 	for y := 0; y < len(canvas.Rows); y++ {
-		row := canvas.Rows[y]
-		if row == nil {
-			continue
-		}
+		canvas.truncateRow(y, w)
+	}
+}
 
-		current := row
-		position := 0
-		var previous *Region
+func (canvas *Canvas) truncateRow(row, width int) {
+	if row < 0 || row >= len(canvas.Rows) || canvas.Rows[row] == nil {
+		return
+	}
 
-		// Traverse the row to find regions that exceed the new width
-		for current != nil {
-			if position+current.Size > w {
-				// Case 1: The current region exceeds the new width, so truncate it
-				if position < w {
-					current.Size = w - position
-					current.Next = nil // Remove the rest of the row
-				} else {
-					// Case 2: The entire region is beyond the new width, so remove it
-					if previous != nil {
-						previous.Next = nil
-					} else {
-						// If this was the first region, the row becomes empty
-						canvas.Rows[y] = nil
-					}
-				}
-				break
+	current := canvas.Rows[row]
+	position := 0
+	var previous *Region
+
+	for current != nil {
+		if position+current.Size > width {
+			if position < width {
+				current.Size = width - position
+				current.Next = nil
+			} else if previous != nil {
+				previous.Next = nil
+			} else {
+				canvas.Rows[row] = nil
 			}
-
-			position += current.Size
-			previous = current
-			current = current.Next
+			return
 		}
+
+		position += current.Size
+		previous = current
+		current = current.Next
 	}
 }
 

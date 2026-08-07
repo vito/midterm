@@ -14,10 +14,10 @@ require (
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/danielgatis/go-ansicode v1.0.7 // indirect
+	github.com/danielgatis/go-ansicode v1.0.14 // indirect
 	github.com/danielgatis/go-iterator v0.0.1 // indirect
-	github.com/danielgatis/go-utf8 v1.0.0 // indirect
-	github.com/danielgatis/go-vte v1.0.8 // indirect
+	github.com/danielgatis/go-utf8 v1.0.1 // indirect
+	github.com/danielgatis/go-vte v1.0.11 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/gorilla/css v1.0.0 // indirect

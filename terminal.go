@@ -429,48 +429,48 @@ func deleteLinesShallow[T any](arr []T, start, ps, scrollStart, scrollEnd int, i
 	}
 }
 
-func eraseCharacters[T any](arr [][]T, row, col, ps int, empty T) {
-	if row < 0 || row >= len(arr) || col < 0 || col+ps > len(arr[row]) {
-		return // handle invalid inputs
-	}
-
+func eraseCharacters[T any](arr [][]T, row, col, ps int, empty T) int {
 	if ps <= 0 {
 		ps = 1 // if Ps is 0 or negative, erase one character
 	}
+	if row < 0 || row >= len(arr) || col < 0 || col >= len(arr[row]) {
+		return 0
+	}
+	ps = min(ps, len(arr[row])-col)
 
 	// Replace Ps characters with the empty value starting from the given position
 	for i := col; i < col+ps; i++ {
 		arr[row][i] = empty
 	}
+	return ps
 }
 
-func deleteCharacters[T any](arr [][]T, row, col, ps int, empty T) {
-	if row < 0 || row >= len(arr) || col < 0 || col >= len(arr[row]) || ps < 0 {
-		return // handle invalid inputs
+func deleteCharacters[T any](arr [][]T, row, col, ps int, empty T) int {
+	if ps <= 0 {
+		ps = 1
 	}
+	if row < 0 || row >= len(arr) || col < 0 || col >= len(arr[row]) {
+		return 0
+	}
+	ps = min(ps, len(arr[row])-col)
 
-	// Calculate the actual number of characters to delete, so it doesn't exceed the available space
-	actualPs := ps
-	if actualPs == 0 {
-		actualPs = 1 // if Ps is 0, delete one character
-	}
-	if col+actualPs > len(arr[row]) {
-		actualPs = len(arr[row]) - col
-	}
-
-	// Shift characters to the left by Ps positions starting from the given column
-	copy(arr[row][col:], arr[row][col+actualPs:])
+	copy(arr[row][col:], arr[row][col+ps:])
 
 	// Fill the end characters with the empty value
 	for i := len(arr[row]) - ps; i < len(arr[row]); i++ {
 		arr[row][i] = empty
 	}
+	return ps
 }
 
-func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
-	if row < 0 || row >= len(arr) || col < 0 || col > len(arr[row]) || ps <= 0 {
-		return // Return the original array if the inputs are out of bounds or invalid
+func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) int {
+	if ps <= 0 {
+		ps = 1
 	}
+	if row < 0 || row >= len(arr) || col < 0 || col >= len(arr[row]) {
+		return 0
+	}
+	ps = min(ps, len(arr[row])-col)
 
 	// Create a slice with ps empty elements
 	empties := make([]T, ps)
@@ -487,24 +487,38 @@ func insertEmpties[T any](arr [][]T, row, col, ps int, empty T) {
 	// automatically, by manually writing the next row and moving the cursor back
 	// up
 	arr[row] = inserted[:len(arr[row])]
+	return ps
 }
 
 func (v *Terminal) insertCharacters(n int) {
-	insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	v.wrap = false // insert characters resets the wrap state.
+	n = insertEmpties(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	if n == 0 {
+		return
+	}
 	v.Format.Insert(v.Cursor.Y, v.Cursor.X, v.Cursor.F, n)
+	v.Format.truncateRow(v.Cursor.Y, len(v.Content[v.Cursor.Y]))
 	v.changed(v.Cursor.Y, false)
 }
 
 func (v *Terminal) deleteCharacters(n int) {
 	v.wrap = false // delete characters resets the wrap state.
-	deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	n = deleteCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	if n == 0 {
+		return
+	}
 	v.Format.Delete(v.Cursor.Y, v.Cursor.X, n)
+	v.Format.Insert(v.Cursor.Y, len(v.Content[v.Cursor.Y])-n, v.Cursor.F, n)
+	v.Format.truncateRow(v.Cursor.Y, len(v.Content[v.Cursor.Y]))
 	v.changed(v.Cursor.Y, false)
 }
 
 func (v *Terminal) eraseCharacters(n int) {
 	v.wrap = false // erase characters resets the wrap state.
-	eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	n = eraseCharacters(v.Content, v.Cursor.Y, v.Cursor.X, n, ' ')
+	if n == 0 {
+		return
+	}
 	for i := 0; i < n; i++ {
 		v.Format.Paint(v.Cursor.Y, v.Cursor.X+i, v.Cursor.F)
 	}

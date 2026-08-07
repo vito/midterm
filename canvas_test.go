@@ -780,7 +780,6 @@ func TestCanvasInsert(t *testing.T) {
 }
 
 func TestCanvasDelete(t *testing.T) {
-	t.Skip("WIP")
 	type paint struct {
 		row, col int
 		f        midterm.Format
@@ -901,7 +900,7 @@ func TestCanvasDelete(t *testing.T) {
 			},
 		},
 		{
-			Name: "different format between regions at start of next region",
+			Name: "deleting at start of next region",
 			Paints: []paint{
 				{0, 0, red, 0},
 				{0, 1, red, 0},
@@ -917,12 +916,8 @@ func TestCanvasDelete(t *testing.T) {
 						F:    red,
 						Size: 3,
 						Next: &midterm.Region{
-							F:    blue,
-							Size: 1,
-							Next: &midterm.Region{
-								F:    green,
-								Size: 2,
-							},
+							F:    green,
+							Size: 2,
 						},
 					},
 				},
