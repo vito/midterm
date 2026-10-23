@@ -113,9 +113,9 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 				int(time.Since(*vt.CursorBlinkEpoch).Seconds())%2 == 0)
 
 		if showCursor {
-			before := string(line[pos:vt.Cursor.X])
-			cursor := string(line[vt.Cursor.X])
-			after := string(line[vt.Cursor.X+1 : pos+region.Size])
+			before := cells(line[pos:vt.Cursor.X])
+			cursor := cells(line[vt.Cursor.X : vt.Cursor.X+1])
+			after := cells(line[vt.Cursor.X+1 : pos+region.Size])
 
 			if len(before) > 0 {
 				if err := format(region.F); err != nil {
@@ -153,7 +153,7 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 				if err := format(f); err != nil {
 					return err
 				}
-				if err := write(string(line[col])); err != nil {
+				if err := write(cells(line[col : col+1])); err != nil {
 					return err
 				}
 			}
@@ -161,7 +161,7 @@ func (vt *Terminal) renderLine(w io.Writer, row int, fg, bg termenv.Color) error
 			if err := format(region.F); err != nil {
 				return err
 			}
-			content := string(line[pos : pos+region.Size])
+			content := cells(line[pos : pos+region.Size])
 			if err := write(content); err != nil {
 				return err
 			}
@@ -284,4 +284,14 @@ func (f Format) RenderFgBg(fg, bg termenv.Color) string {
 		res += fmt.Sprintf("%s%sm", termenv.CSI, strings.Join(styles, ";"))
 	}
 	return res
+}
+
+func cells(rs []rune) string {
+	out := make([]rune, 0, len(rs))
+	for _, r := range rs {
+		if r != WideCont {
+			out = append(out, r)
+		}
+	}
+	return string(out)
 }

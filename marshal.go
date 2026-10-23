@@ -49,6 +49,9 @@ func (vt *Terminal) MarshalBinary() (data []byte, err error) {
 	if vt.wrap { // Hack to force wrap flag into correct state
 		row := vt.Cursor.Y
 		col := vt.Cursor.X
+		if vt.Content[row][col] == WideCont {
+			col-- // re-put the double-width rune, which fills both cells
+		}
 
 		_, _ = fmt.Fprintf(&buffer, termenv.CSI+termenv.CursorPositionSeq, row+1, col+1)
 
@@ -151,7 +154,7 @@ func (s *Screen) marshalLine(row int) (data []byte, err error) {
 	for region := range s.Format.Regions(row) {
 		format(region.F)
 		end := min(pos+region.Size, s.MaxX+1)
-		content := string(s.Content[row][pos:end])
+		content := cells(s.Content[row][pos:end])
 		_, err = buffer.WriteString(content)
 		if err != nil {
 			return

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danielgatis/go-ansicode"
+	"github.com/mattn/go-runewidth"
 	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/vito/midterm"
@@ -389,6 +390,52 @@ func TestEraseCharactersOutsideScreenDoesNotGrowIt(t *testing.T) {
 	mustFprintf(t, vt, "\x1b[99d\x1b[X")
 
 	require.Equal(t, 1, vt.Height)
+}
+
+func TestWideRunesOccupyTwoCells(t *testing.T) {
+	const cont = midterm.WideCont
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  [][]rune
+	}{
+		{name: "within row", input: "a世b", want: [][]rune{{'a', '世', cont, 'b'}, []rune("    ")}},
+		{name: "straddles last column", input: "abc世", want: [][]rune{[]rune("abc "), {'世', cont, ' ', ' '}}},
+		{name: "zero width", input: "éx", want: [][]rune{[]rune("ex  "), []rune("    ")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			vt := midterm.NewTerminal(2, 4)
+			mustFprintf(t, vt, "%s", tc.input)
+
+			require.Equal(t, tc.want, vt.Content)
+		})
+	}
+}
+
+func TestAmbiguousWidthIgnoresEastAsianLocale(t *testing.T) {
+	prev := runewidth.DefaultCondition.EastAsianWidth
+	runewidth.DefaultCondition.EastAsianWidth = true
+	t.Cleanup(func() { runewidth.DefaultCondition.EastAsianWidth = prev })
+
+	vt := midterm.NewTerminal(1, 4)
+	mustFprintf(t, vt, "─…→")
+
+	require.Equal(t, "─…→ ", string(vt.Content[0]))
+}
+
+func TestMarshalBinaryWideRuneAtPendingWrap(t *testing.T) {
+	vt := midterm.NewTerminal(2, 4)
+	mustFprintf(t, vt, "ab世")
+
+	data, err := vt.MarshalBinary()
+	require.NoError(t, err)
+	clone := midterm.NewTerminal(2, 4)
+	_, err = clone.Write(data)
+	require.NoError(t, err)
+
+	mustFprintf(t, vt, "c")
+	mustFprintf(t, clone, "c")
+	require.Equal(t, vt.Content, clone.Content)
 }
 
 // TestOnScrollback verifies the OnScrollback hook fires for each line

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/danielgatis/go-ansicode"
+	"github.com/mattn/go-runewidth"
 	"github.com/muesli/termenv"
 )
 
@@ -247,8 +248,28 @@ func (v *Terminal) resize(h, w int) {
 	}
 }
 
+// WideCont fills the cell to the right of a double-width rune.
+const WideCont rune = -1
+
+// cellWidth ignores the host's locale, so ambiguous-width runes stay narrow.
+var cellWidth = &runewidth.Condition{StrictEmojiNeutral: true}
+
 // put puts r onto the current cursor's position, then advances the cursor.
 func (v *Terminal) put(r rune) {
+	w := cellWidth.RuneWidth(r)
+	if w == 0 {
+		return // a cell holds one rune, so combining marks are dropped
+	}
+	if w == 2 && !v.AutoResizeX && v.Cursor.X == v.Width-1 {
+		v.putOne(' ')
+	}
+	v.putOne(r)
+	if w == 2 && !v.AutoResizeX {
+		v.putOne(WideCont)
+	}
+}
+
+func (v *Terminal) putOne(r rune) {
 	if v.wrap {
 		v.Cursor.X = 0
 		v.moveDown()
